@@ -196,7 +196,7 @@ struct ContentView: View {
                     }
                     .width(60)
                 }
-                .alternatingRowBackgrounds()
+                .modifier(AlternatingRowsModifier())
             }
         }
     }
@@ -558,6 +558,16 @@ struct ToastView: View {
         .background(backgroundColor.opacity(0.9))
         .cornerRadius(8)
         .shadow(radius: 4)
+    }
+}
+
+struct AlternatingRowsModifier: ViewModifier {
+    func body(content: Content) -> some View {
+        if #available(macOS 14.0, *) {
+            content.alternatingRowBackgrounds()
+        } else {
+            content
+        }
     }
 }
 
