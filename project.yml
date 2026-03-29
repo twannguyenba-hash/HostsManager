@@ -22,6 +22,7 @@ targets:
       - HostsManager
     settings:
       base:
+        GENERATE_INFOPLIST_FILE: YES
         INFOPLIST_KEY_LSUIElement: NO
         INFOPLIST_KEY_CFBundleDisplayName: HostsManager
         CODE_SIGN_ENTITLEMENTS: HostsManager/HostsManager.entitlements
