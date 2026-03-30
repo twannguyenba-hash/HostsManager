@@ -249,37 +249,16 @@ class HostsFileManager: ObservableObject {
     }
 
     private func runPrivilegedCommand(_ command: String, completion: @escaping (Bool, String?) -> Void) {
-        let escaped = command.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "\"", with: "\\\"")
-        let script = "do shell script \"\(escaped)\" with administrator privileges"
-
         DispatchQueue.global(qos: .userInitiated).async {
-            let process = Process()
-            process.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")
-            process.arguments = ["-e", script]
+            let status = runPrivilegedShellCommand(command)
 
-            let pipe = Pipe()
-            process.standardOutput = pipe
-            process.standardError = pipe
-
-            do {
-                try process.run()
-                process.waitUntilExit()
-
-                let errorData = pipe.fileHandleForReading.readDataToEndOfFile()
-                let errorString = String(data: errorData, encoding: .utf8) ?? ""
-
-                DispatchQueue.main.async {
-                    if process.terminationStatus == 0 {
-                        completion(true, nil)
-                    } else if errorString.contains("-128") || process.terminationStatus == 1 {
-                        completion(false, nil) // User cancelled
-                    } else {
-                        completion(false, errorString)
-                    }
-                }
-            } catch {
-                DispatchQueue.main.async {
-                    completion(false, error.localizedDescription)
+            DispatchQueue.main.async {
+                if status == errAuthorizationSuccess {
+                    completion(true, nil)
+                } else if status == errAuthorizationCanceled {
+                    completion(false, nil) // User cancelled
+                } else {
+                    completion(false, "Lỗi xác thực (code: \(status))")
                 }
             }
         }

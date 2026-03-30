@@ -27,3 +27,6 @@ targets:
         INFOPLIST_KEY_CFBundleDisplayName: HostsManager
         CODE_SIGN_ENTITLEMENTS: HostsManager/HostsManager.entitlements
         PRODUCT_BUNDLE_IDENTIFIER: com.hostsmanager.app
+        SWIFT_OBJC_BRIDGING_HEADER: HostsManager/HostsManager-Bridging-Header.h
+    dependencies:
+      - sdk: Security.framework
