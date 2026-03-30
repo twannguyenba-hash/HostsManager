@@ -270,18 +270,21 @@ class HostsFileManager: ObservableObject {
         let arg2 = strdup(command)!
         defer { free(arg1); free(arg2) }
 
-        let args: [UnsafeMutablePointer<CChar>?] = [arg1, arg2, nil]
         var outputFile: UnsafeMutablePointer<FILE>?
 
-        let execStatus = args.withUnsafeBufferPointer { buf -> OSStatus in
-            return AuthorizationExecuteWithPrivileges(
-                auth,
-                "/bin/sh",
-                [],
-                buf.baseAddress!,
-                &outputFile
-            )
-        }
+        let argsPtr = UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>.allocate(capacity: 3)
+        defer { argsPtr.deallocate() }
+        argsPtr[0] = arg1
+        argsPtr[1] = arg2
+        argsPtr[2] = nil
+
+        let execStatus = AuthorizationExecuteWithPrivileges(
+            auth,
+            "/bin/sh",
+            [],
+            UnsafePointer(argsPtr),
+            &outputFile
+        )
 
         if execStatus == errAuthorizationSuccess {
             if let file = outputFile {
