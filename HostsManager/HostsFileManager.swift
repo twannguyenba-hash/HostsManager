@@ -249,76 +249,62 @@ class HostsFileManager: ObservableObject {
         }
     }
 
-    private func runPrivilegedCommand(_ command: String, completion: @escaping (Bool, String?) -> Void) {
-        DispatchQueue.global(qos: .userInitiated).async {
-            var authRef: AuthorizationRef?
+    private nonisolated func executePrivileged(_ command: String) -> (success: Bool, error: String?) {
+        var authRef: AuthorizationRef?
 
-            let status = kAuthorizationRightExecute.withCString { name in
-                var authItem = AuthorizationItem(
-                    name: name,
-                    valueLength: 0,
-                    value: nil,
-                    flags: 0
-                )
-                return withUnsafeMutablePointer(to: &authItem) { itemPtr in
-                    var authRights = AuthorizationRights(count: 1, items: itemPtr)
-                    let flags: AuthorizationFlags = [.interactionAllowed, .preAuthorize, .extendRights]
-                    return AuthorizationCreate(&authRights, nil, flags, &authRef)
-                }
+        let status = kAuthorizationRightExecute.withCString { name in
+            var authItem = AuthorizationItem(name: name, valueLength: 0, value: nil, flags: 0)
+            return withUnsafeMutablePointer(to: &authItem) { itemPtr in
+                var authRights = AuthorizationRights(count: 1, items: itemPtr)
+                return AuthorizationCreate(&authRights, nil, [.interactionAllowed, .preAuthorize, .extendRights], &authRef)
             }
+        }
 
-            guard status == errAuthorizationSuccess, let auth = authRef else {
-                let cancelled = status == errAuthorizationCanceled
-                DispatchQueue.main.async {
-                    completion(false, cancelled ? nil : "Xác thực thất bại")
-                }
-                return
-            }
+        guard status == errAuthorizationSuccess, let auth = authRef else {
+            if status == errAuthorizationCanceled { return (false, nil) }
+            return (false, "Xác thực thất bại")
+        }
+        defer { AuthorizationFree(auth, []) }
 
-            defer { AuthorizationFree(auth, []) }
+        let arg1 = strdup("-c")!
+        let arg2 = strdup(command)!
+        defer { free(arg1); free(arg2) }
 
-            let shellPath = "/bin/sh"
-            let args = ["-c", command]
+        let args: [UnsafeMutablePointer<CChar>?] = [arg1, arg2, nil]
+        var outputFile: UnsafeMutablePointer<FILE>?
 
-            let cArgs: [UnsafeMutablePointer<CChar>?] = args.map { strdup($0) } + [nil]
-            defer { cArgs.forEach { if let p = $0 { free(p) } } }
-
-            var outputFile: UnsafeMutablePointer<FILE>?
-
-            let cArgsMutable = UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>.allocate(capacity: cArgs.count)
-            defer { cArgsMutable.deallocate() }
-            for (i, arg) in cArgs.enumerated() {
-                cArgsMutable[i] = arg
-            }
-
-            let execStatus = AuthorizationExecuteWithPrivileges(
+        let execStatus = args.withUnsafeBufferPointer { buf -> OSStatus in
+            return AuthorizationExecuteWithPrivileges(
                 auth,
-                shellPath,
+                "/bin/sh",
                 [],
-                cArgsMutable,
+                buf.baseAddress!,
                 &outputFile
             )
+        }
 
-            if execStatus == errAuthorizationSuccess {
-                if let file = outputFile {
-                    let bufSize = 4096
-                    let buf = UnsafeMutablePointer<CChar>.allocate(capacity: bufSize)
-                    defer { buf.deallocate() }
-                    while fgets(buf, Int32(bufSize), file) != nil {}
-                    fclose(file)
+        if execStatus == errAuthorizationSuccess {
+            if let file = outputFile {
+                let bufSize = 4096
+                let readBuf = UnsafeMutablePointer<CChar>.allocate(capacity: bufSize)
+                defer { readBuf.deallocate() }
+                while fgets(readBuf, Int32(bufSize), file) != nil {}
+                fclose(file)
+                var childStatus: Int32 = 0
+                wait(&childStatus)
+            }
+            return (true, nil)
+        }
 
-                    var childStatus: Int32 = 0
-                    wait(&childStatus)
-                }
+        if execStatus == errAuthorizationCanceled { return (false, nil) }
+        return (false, "Không thể thực thi lệnh với quyền admin")
+    }
 
-                DispatchQueue.main.async {
-                    completion(true, nil)
-                }
-            } else {
-                let cancelled = execStatus == errAuthorizationCanceled
-                DispatchQueue.main.async {
-                    completion(false, cancelled ? nil : "Không thể thực thi lệnh với quyền admin")
-                }
+    private func runPrivilegedCommand(_ command: String, completion: @escaping (Bool, String?) -> Void) {
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            let result = self?.executePrivileged(command) ?? (false, "Unexpected error")
+            DispatchQueue.main.async {
+                completion(result.success, result.error)
             }
         }
     }
