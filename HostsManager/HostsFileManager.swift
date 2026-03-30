@@ -1,4 +1,5 @@
 import Foundation
+import Security
 import SwiftUI
 
 struct HostEntry: Identifiable, Equatable {
@@ -248,80 +249,117 @@ class HostsFileManager: ObservableObject {
         }
     }
 
-    func applyChanges() {
-        guard hasUnsavedChanges else { return }
-        isApplying = true
+    private func runPrivilegedCommand(_ command: String, completion: @escaping (Bool, String?) -> Void) {
+        DispatchQueue.global(qos: .userInitiated).async {
+            var authRef: AuthorizationRef?
 
-        let content = generateHostsContent()
-        let escaped = content
-            .replacingOccurrences(of: "\\", with: "\\\\")
-            .replacingOccurrences(of: "\"", with: "\\\"")
+            var authItem = AuthorizationItem(
+                name: kAuthorizationRightExecute,
+                valueLength: 0,
+                value: nil,
+                flags: 0
+            )
+            var authRights = AuthorizationRights(count: 1, items: &authItem)
 
-        let script = "do shell script \"echo \\\"\(escaped)\\\" > /etc/hosts && dscacheutil -flushcache && killall -HUP mDNSResponder 2>/dev/null; true\" with administrator privileges"
+            let flags: AuthorizationFlags = [.interactionAllowed, .preAuthorize, .extendRights]
+            let status = AuthorizationCreate(&authRights, nil, flags, &authRef)
 
-        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-            let process = Process()
-            process.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")
-            process.arguments = ["-e", script]
-
-            let pipe = Pipe()
-            process.standardOutput = pipe
-            process.standardError = pipe
-
-            do {
-                try process.run()
-                process.waitUntilExit()
-
+            guard status == errAuthorizationSuccess, let auth = authRef else {
+                let cancelled = status == errAuthorizationCanceled
                 DispatchQueue.main.async {
-                    guard let self = self else { return }
-                    self.isApplying = false
-
-                    if process.terminationStatus == 0 {
-                        self.originalContent = content
-                        self.hasUnsavedChanges = false
-                        self.showToast("Đã áp dụng thành công!", type: .success)
-                    } else {
-                        let errorData = pipe.fileHandleForReading.readDataToEndOfFile()
-                        let errorString = String(data: errorData, encoding: .utf8) ?? ""
-                        // User cancelled password dialog (error -128)
-                        if errorString.contains("-128") || process.terminationStatus == 1 {
-                            // User cancelled — do nothing
-                        } else {
-                            self.showToast("Lỗi: \(errorString)", type: .error)
-                        }
-                    }
+                    completion(false, cancelled ? nil : "Xác thực thất bại")
                 }
-            } catch {
+                return
+            }
+
+            defer { AuthorizationFree(auth, []) }
+
+            let shellPath = "/bin/sh"
+            let args = ["-c", command]
+
+            // Use AuthorizationExecuteWithPrivileges to run command as root
+            let cArgs = args.map { strdup($0) } + [nil]
+            defer { cArgs.forEach { if let p = $0 { free(p) } } }
+
+            var outputFile: UnsafeMutablePointer<FILE>?
+            let execStatus = AuthorizationExecuteWithPrivileges(
+                auth,
+                shellPath,
+                [],
+                cArgs,
+                &outputFile
+            )
+
+            if execStatus == errAuthorizationSuccess {
+                // Read output and wait for child process
+                if let file = outputFile {
+                    var output = ""
+                    let bufSize = 4096
+                    let buf = UnsafeMutablePointer<CChar>.allocate(capacity: bufSize)
+                    defer { buf.deallocate() }
+                    while fgets(buf, Int32(bufSize), file) != nil {
+                        output += String(cString: buf)
+                    }
+                    fclose(file)
+
+                    // Wait for child process to finish
+                    var childStatus: Int32 = 0
+                    wait(&childStatus)
+                }
+
                 DispatchQueue.main.async {
-                    guard let self = self else { return }
-                    self.isApplying = false
-                    self.showToast("Lỗi: \(error.localizedDescription)", type: .error)
+                    completion(true, nil)
+                }
+            } else {
+                let cancelled = execStatus == errAuthorizationCanceled
+                DispatchQueue.main.async {
+                    completion(false, cancelled ? nil : "Không thể thực thi lệnh với quyền admin")
                 }
             }
         }
     }
 
+    func applyChanges() {
+        guard hasUnsavedChanges else { return }
+        isApplying = true
+
+        let content = generateHostsContent()
+        let tempPath = NSTemporaryDirectory() + "hosts_\(UUID().uuidString)"
+
+        do {
+            try content.write(toFile: tempPath, atomically: true, encoding: .utf8)
+        } catch {
+            isApplying = false
+            showToast("Lỗi tạo file tạm: \(error.localizedDescription)", type: .error)
+            return
+        }
+
+        let command = "cp \(tempPath) /etc/hosts && rm -f \(tempPath) && dscacheutil -flushcache && killall -HUP mDNSResponder 2>/dev/null; true"
+
+        runPrivilegedCommand(command) { [weak self] success, error in
+            guard let self = self else { return }
+            self.isApplying = false
+
+            if success {
+                self.originalContent = content
+                self.hasUnsavedChanges = false
+                self.showToast("Đã áp dụng thành công!", type: .success)
+            } else if let error = error {
+                self.showToast("Lỗi: \(error)", type: .error)
+            }
+            // error == nil means user cancelled — do nothing
+        }
+    }
+
     func createBackup() {
         let timestamp = ISO8601DateFormatter().string(from: Date()).replacingOccurrences(of: ":", with: "-")
-        let script = "do shell script \"cp /etc/hosts /etc/hosts.backup.\(timestamp)\" with administrator privileges"
+        let command = "cp /etc/hosts /etc/hosts.backup.\(timestamp)"
 
-        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-            let process = Process()
-            process.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")
-            process.arguments = ["-e", script]
-
-            do {
-                try process.run()
-                process.waitUntilExit()
-                DispatchQueue.main.async {
-                    if process.terminationStatus == 0 {
-                        self?.showToast("Đã tạo backup: hosts.backup.\(timestamp)", type: .success)
-                    }
-                }
-            } catch {
-                DispatchQueue.main.async {
-                    self?.showToast("Lỗi tạo backup: \(error.localizedDescription)", type: .error)
-                }
+        runPrivilegedCommand(command) { [weak self] success, error in
+            if success {
+                self?.showToast("Đã tạo backup: hosts.backup.\(timestamp)", type: .success)
+            } else if let error = error {
+                self?.showToast("Lỗi tạo backup: \(error)", type: .error)
             }
         }
     }
