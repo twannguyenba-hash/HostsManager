@@ -248,6 +248,17 @@ struct SidebarView: View {
                 }
             }
         }
+            Section {
+                HStack {
+                    Spacer()
+                    Text("v\(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "?")")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                    Spacer()
+                }
+                .listRowBackground(Color.clear)
+            }
+        }
         .listStyle(.sidebar)
         .navigationSplitViewColumnWidth(min: 180, ideal: 220)
     }
