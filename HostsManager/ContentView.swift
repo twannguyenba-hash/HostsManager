@@ -22,6 +22,13 @@ let presetItems: [PresetItem] = [
     PresetItem(name: "api.local", hostname: "api.local", ip: "127.0.0.1", icon: "hammer.fill", category: "Dev"),
 ]
 
+// MARK: - View Mode
+
+enum ViewMode {
+    case table
+    case text
+}
+
 // MARK: - Content View
 
 struct ContentView: View {
@@ -33,13 +40,17 @@ struct ContentView: View {
     @State private var editingEntry: HostEntry?
     @State private var deleteTarget: HostEntry?
     @State private var showDeleteConfirm = false
+    @State private var viewMode: ViewMode = .table
+    @State private var rawText = ""
 
     var body: some View {
         NavigationSplitView {
             SidebarView(selectedFilter: $selectedFilter, hostsManager: hostsManager)
         } detail: {
             ZStack {
-                if selectedFilter == .presets {
+                if viewMode == .text {
+                    rawTextEditorView
+                } else if selectedFilter == .presets {
                     PresetsView(hostsManager: hostsManager)
                 } else {
                     entriesListView
@@ -60,12 +71,28 @@ struct ContentView: View {
         .searchable(text: $searchText, prompt: "Tìm kiếm hostname, IP...")
         .toolbar {
             ToolbarItemGroup(placement: .primaryAction) {
+                Picker("Mode", selection: $viewMode) {
+                    Image(systemName: "tablecells").tag(ViewMode.table)
+                    Image(systemName: "doc.plaintext").tag(ViewMode.text)
+                }
+                .pickerStyle(.segmented)
+                .help("Chuyển đổi chế độ xem")
+                .onChange(of: viewMode) { newValue in
+                    if newValue == .text {
+                        rawText = hostsManager.generateHostsContent()
+                        searchText = ""
+                    } else {
+                        hostsManager.replaceContentFromRawText(rawText)
+                    }
+                }
+
                 Button {
                     showAddSheet = true
                 } label: {
                     Image(systemName: "plus")
                 }
                 .help("Thêm entry mới")
+                .disabled(viewMode == .text)
 
                 Menu {
                     Button {
@@ -86,15 +113,23 @@ struct ContentView: View {
                     }
                     Button {
                         hostsManager.loadHostsFile()
+                        if viewMode == .text {
+                            rawText = hostsManager.generateHostsContent()
+                        }
                     } label: {
                         Label("Tải lại từ file", systemImage: "arrow.clockwise")
                     }
                 } label: {
                     Image(systemName: "ellipsis.circle")
                 }
+                .disabled(viewMode == .text)
 
                 Button {
-                    hostsManager.applyChanges()
+                    if viewMode == .text {
+                        hostsManager.applyRawText(rawText)
+                    } else {
+                        hostsManager.applyChanges()
+                    }
                 } label: {
                     if hostsManager.isApplying {
                         ProgressView()
@@ -124,6 +159,30 @@ struct ContentView: View {
             Button("Hủy", role: .cancel) {}
         } message: { entry in
             Text("Bạn có chắc muốn xóa entry \"\(entry.hostname)\"?")
+        }
+    }
+
+    private var rawTextEditorView: some View {
+        VStack(spacing: 0) {
+            HStack {
+                Text("Raw Hosts Editor")
+                    .font(.headline)
+                Spacer()
+                Text("\(rawText.components(separatedBy: "\n").count) dòng")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .background(Color(nsColor: .controlBackgroundColor))
+
+            Divider()
+
+            TextEditor(text: $rawText)
+                .font(.system(.body, design: .monospaced))
+                .onChange(of: rawText) { _ in
+                    hostsManager.hasUnsavedChanges = true
+                }
         }
     }
 

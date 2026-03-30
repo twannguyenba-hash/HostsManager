@@ -296,6 +296,43 @@ class HostsFileManager: ObservableObject {
         }
     }
 
+    func replaceContentFromRawText(_ text: String) {
+        parseHostsContent(text)
+        hasUnsavedChanges = true
+    }
+
+    func applyRawText(_ text: String) {
+        guard !text.isEmpty else { return }
+        isApplying = true
+
+        let content = text.hasSuffix("\n") ? text : text + "\n"
+        let tempPath = NSTemporaryDirectory() + "hosts_\(UUID().uuidString)"
+
+        do {
+            try content.write(toFile: tempPath, atomically: true, encoding: .utf8)
+        } catch {
+            isApplying = false
+            showToast("Lỗi tạo file tạm: \(error.localizedDescription)", type: .error)
+            return
+        }
+
+        let command = "cp \(tempPath) /etc/hosts && rm -f \(tempPath) && dscacheutil -flushcache && killall -HUP mDNSResponder 2>/dev/null; true"
+
+        runPrivilegedCommand(command) { [weak self] success, error in
+            guard let self = self else { return }
+            self.isApplying = false
+
+            if success {
+                self.originalContent = content
+                self.parseHostsContent(content)
+                self.hasUnsavedChanges = false
+                self.showToast("Đã áp dụng thành công!", type: .success)
+            } else if let error = error {
+                self.showToast("Lỗi: \(error)", type: .error)
+            }
+        }
+    }
+
     func createBackup() {
         let timestamp = ISO8601DateFormatter().string(from: Date()).replacingOccurrences(of: ":", with: "-")
         let command = "cp /etc/hosts /etc/hosts.backup.\(timestamp)"
