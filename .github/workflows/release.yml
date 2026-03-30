@@ -70,6 +70,39 @@ jobs:
             ```bash
             brew install twannguyenba-hash/hostsmanager/hostsmanager
             ```
+
+            ### Cập nhật
+            ```bash
+            brew update && brew upgrade hostsmanager
+            ```
+
             Hoặc tải file ZIP/DMG bên dưới.
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Update Homebrew Tap
+        env:
+          TAP_REPO_TOKEN: ${{ secrets.TAP_REPO_TOKEN }}
+        run: |
+          VERSION="${{ github.ref_name }}"
+          VERSION_CLEAN="${VERSION#v}"
+          SHA256="${{ steps.sha.outputs.sha256 }}"
+
+          if [ -z "$TAP_REPO_TOKEN" ]; then
+            echo "::warning::TAP_REPO_TOKEN not set, skipping Homebrew tap update"
+            exit 0
+          fi
+
+          git clone https://x-access-token:${TAP_REPO_TOKEN}@github.com/twannguyenba-hash/homebrew-hostsmanager.git /tmp/homebrew-tap
+          cd /tmp/homebrew-tap
+
+          sed -i '' "s/version \".*\"/version \"${VERSION_CLEAN}\"/" Casks/hostsmanager.rb
+          sed -i '' "s/sha256 \".*\"/sha256 \"${SHA256}\"/" Casks/hostsmanager.rb
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Casks/hostsmanager.rb
+          git commit -m "chore: update hostsmanager to v${VERSION_CLEAN}"
+          git push origin main
+
+          echo "✓ Homebrew tap updated to v${VERSION_CLEAN}"
