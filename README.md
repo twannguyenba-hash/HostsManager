@@ -28,6 +28,9 @@
 ```bash
 brew tap twannguyenba-hash/hostsmanager
 brew install hostsmanager
+
+# Cập nhật lên phiên bản mới
+brew update && brew upgrade hostsmanager
 ```
 
 ### Build từ source
