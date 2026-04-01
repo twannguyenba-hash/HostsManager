@@ -8,14 +8,26 @@ struct HostEntry: Identifiable, Equatable {
     var comment: String
     var isEnabled: Bool
     var isComment: Bool // pure comment line, not a disabled entry
+    var tag: String? // nil = untagged
 
-    init(id: UUID = UUID(), ip: String = "", hostname: String = "", comment: String = "", isEnabled: Bool = true, isComment: Bool = false) {
+    init(id: UUID = UUID(), ip: String = "", hostname: String = "", comment: String = "", isEnabled: Bool = true, isComment: Bool = false, tag: String? = nil) {
         self.id = id
         self.ip = ip
         self.hostname = hostname
         self.comment = comment
         self.isEnabled = isEnabled
         self.isComment = isComment
+        self.tag = tag
+    }
+}
+
+struct HostTag: Identifiable, Equatable {
+    let id: UUID
+    var name: String
+
+    init(id: UUID = UUID(), name: String) {
+        self.id = id
+        self.name = name
     }
 }
 
@@ -55,6 +67,7 @@ struct ToastMessage: Equatable {
 @MainActor
 class HostsFileManager: ObservableObject {
     @Published var entries: [HostEntry] = []
+    @Published var tags: [HostTag] = []
     @Published var commentLines: [(index: Int, text: String)] = []
     @Published var hasUnsavedChanges = false
     @Published var isApplying = false
@@ -78,14 +91,45 @@ class HostsFileManager: ObservableObject {
         }
     }
 
+    private static let tagStartPattern = try! NSRegularExpression(pattern: #"^##\s*\[tag:(.+)\]\s*$"#)
+    private static let tagEndPattern = try! NSRegularExpression(pattern: #"^##\s*\[/tag:(.+)\]\s*$"#)
+
+    private func parseTagMarker(_ line: String) -> (isStart: Bool, name: String)? {
+        let range = NSRange(line.startIndex..., in: line)
+        if let match = Self.tagStartPattern.firstMatch(in: line, range: range),
+           let nameRange = Range(match.range(at: 1), in: line) {
+            return (isStart: true, name: String(line[nameRange]).trimmingCharacters(in: .whitespaces))
+        }
+        if let match = Self.tagEndPattern.firstMatch(in: line, range: range),
+           let nameRange = Range(match.range(at: 1), in: line) {
+            return (isStart: false, name: String(line[nameRange]).trimmingCharacters(in: .whitespaces))
+        }
+        return nil
+    }
+
     func parseHostsContent(_ content: String) {
         var newEntries: [HostEntry] = []
         var newCommentLines: [(index: Int, text: String)] = []
+        var discoveredTagNames: [String] = []
+        var currentTag: String? = nil
         let lines = content.components(separatedBy: "\n")
 
         for (index, line) in lines.enumerated() {
             let trimmed = line.trimmingCharacters(in: .whitespaces)
             if trimmed.isEmpty { continue }
+
+            // Check for tag markers
+            if let marker = parseTagMarker(trimmed) {
+                if marker.isStart {
+                    currentTag = marker.name
+                    if !discoveredTagNames.contains(where: { $0.lowercased() == marker.name.lowercased() }) {
+                        discoveredTagNames.append(marker.name)
+                    }
+                } else {
+                    currentTag = nil
+                }
+                continue // tag markers are metadata, not stored as comments
+            }
 
             if trimmed.hasPrefix("#") {
                 let uncommented = String(trimmed.dropFirst()).trimmingCharacters(in: .whitespaces)
@@ -98,7 +142,8 @@ class HostsFileManager: ObservableObject {
                         hostname: parts[1],
                         comment: comment,
                         isEnabled: false,
-                        isComment: false
+                        isComment: false,
+                        tag: currentTag
                     )
                     newEntries.append(entry)
                 } else {
@@ -124,7 +169,8 @@ class HostsFileManager: ObservableObject {
                         hostname: parts[1],
                         comment: inlineComment,
                         isEnabled: true,
-                        isComment: false
+                        isComment: false,
+                        tag: currentTag
                     )
                     newEntries.append(entry)
                 }
@@ -133,6 +179,7 @@ class HostsFileManager: ObservableObject {
 
         entries = newEntries
         commentLines = newCommentLines
+        tags = discoveredTagNames.map { HostTag(name: $0) }
     }
 
     func generateHostsContent() -> String {
@@ -147,23 +194,43 @@ class HostsFileManager: ObservableObject {
             lines.append("")
         }
 
-        for entry in entries {
-            if entry.isEnabled {
-                var line = "\(entry.ip)\t\(entry.hostname)"
-                if !entry.comment.isEmpty {
-                    line += " # \(entry.comment)"
-                }
-                lines.append(line)
-            } else {
-                var line = "# \(entry.ip)\t\(entry.hostname)"
-                if !entry.comment.isEmpty {
-                    line += " # \(entry.comment)"
-                }
-                lines.append(line)
+        // Write untagged entries first
+        for entry in entries where entry.tag == nil {
+            lines.append(formatEntry(entry))
+        }
+
+        // Write tagged entries grouped by tag
+        for tag in tags {
+            let tagEntries = entries.filter { $0.tag == tag.name }
+            if tagEntries.isEmpty { continue }
+
+            if lines.last != "" && lines.last != nil {
+                lines.append("")
             }
+            lines.append("## [tag:\(tag.name)]")
+            for entry in tagEntries {
+                lines.append(formatEntry(entry))
+            }
+            lines.append("## [/tag:\(tag.name)]")
         }
 
         return lines.joined(separator: "\n") + "\n"
+    }
+
+    private func formatEntry(_ entry: HostEntry) -> String {
+        if entry.isEnabled {
+            var line = "\(entry.ip)\t\(entry.hostname)"
+            if !entry.comment.isEmpty {
+                line += " # \(entry.comment)"
+            }
+            return line
+        } else {
+            var line = "# \(entry.ip)\t\(entry.hostname)"
+            if !entry.comment.isEmpty {
+                line += " # \(entry.comment)"
+            }
+            return line
+        }
     }
 
     private func isValidIP(_ string: String) -> Bool {
@@ -179,20 +246,94 @@ class HostsFileManager: ObservableObject {
         return false
     }
 
-    func addEntry(ip: String, hostname: String, comment: String) {
-        let entry = HostEntry(ip: ip, hostname: hostname, comment: comment, isEnabled: true)
+    func addEntry(ip: String, hostname: String, comment: String, tag: String? = nil) {
+        let entry = HostEntry(ip: ip, hostname: hostname, comment: comment, isEnabled: true, tag: tag)
         entries.append(entry)
         hasUnsavedChanges = true
         showToast("Đã thêm \(hostname)", type: .success)
     }
 
-    func updateEntry(id: UUID, ip: String, hostname: String, comment: String) {
+    func updateEntry(id: UUID, ip: String, hostname: String, comment: String, tag: String? = nil) {
         if let index = entries.firstIndex(where: { $0.id == id }) {
             entries[index].ip = ip
             entries[index].hostname = hostname
             entries[index].comment = comment
+            entries[index].tag = tag
             hasUnsavedChanges = true
         }
+    }
+
+    // MARK: - Tag Management
+
+    func createTag(name: String) {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        guard !tags.contains(where: { $0.name.lowercased() == trimmed.lowercased() }) else {
+            showToast("Tag \"\(trimmed)\" đã tồn tại", type: .error)
+            return
+        }
+        tags.append(HostTag(name: trimmed))
+        hasUnsavedChanges = true
+        showToast("Đã tạo tag \"\(trimmed)\"", type: .success)
+    }
+
+    func renameTag(oldName: String, newName: String) {
+        let trimmed = newName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        guard !tags.contains(where: { $0.name.lowercased() == trimmed.lowercased() }) else {
+            showToast("Tag \"\(trimmed)\" đã tồn tại", type: .error)
+            return
+        }
+        if let tagIndex = tags.firstIndex(where: { $0.name == oldName }) {
+            tags[tagIndex].name = trimmed
+        }
+        for i in entries.indices {
+            if entries[i].tag == oldName {
+                entries[i].tag = trimmed
+            }
+        }
+        hasUnsavedChanges = true
+        showToast("Đã đổi tên tag thành \"\(trimmed)\"", type: .success)
+    }
+
+    func deleteTag(name: String) {
+        tags.removeAll { $0.name == name }
+        for i in entries.indices {
+            if entries[i].tag == name {
+                entries[i].tag = nil
+            }
+        }
+        hasUnsavedChanges = true
+        showToast("Đã xóa tag \"\(name)\"", type: .success)
+    }
+
+    func toggleTag(name: String) {
+        let tagEntries = entries.filter { $0.tag == name }
+        let allEnabled = tagEntries.allSatisfy { $0.isEnabled }
+        let newState = !allEnabled
+
+        for i in entries.indices {
+            if entries[i].tag == name {
+                entries[i].isEnabled = newState
+            }
+        }
+        hasUnsavedChanges = true
+    }
+
+    func isTagEnabled(name: String) -> Bool {
+        let tagEntries = entries.filter { $0.tag == name }
+        return !tagEntries.isEmpty && tagEntries.allSatisfy { $0.isEnabled }
+    }
+
+    func moveEntryToTag(entryId: UUID, tag: String?) {
+        if let index = entries.firstIndex(where: { $0.id == entryId }) {
+            entries[index].tag = tag
+            hasUnsavedChanges = true
+        }
+    }
+
+    func tagEntryCount(name: String) -> Int {
+        entries.filter { $0.tag == name }.count
     }
 
     func deleteEntry(id: UUID) {
@@ -211,20 +352,25 @@ class HostsFileManager: ObservableObject {
         entries.contains { $0.hostname.lowercased() == hostname.lowercased() }
     }
 
-    func filteredEntries(filter: SidebarFilter, searchText: String) -> [HostEntry] {
+    func filteredEntries(filter: SidebarFilter, searchText: String, selectedTag: String? = nil) -> [HostEntry] {
         var result = entries
 
-        switch filter {
-        case .all:
-            break
-        case .enabled:
-            result = result.filter { $0.isEnabled }
-        case .disabled:
-            result = result.filter { !$0.isEnabled }
-        case .blocking:
-            result = result.filter { $0.ip == "0.0.0.0" || $0.ip == "127.0.0.1" && $0.hostname != "localhost" }
-        case .presets:
-            break
+        // Tag filter takes priority
+        if let tag = selectedTag {
+            result = result.filter { $0.tag == tag }
+        } else {
+            switch filter {
+            case .all:
+                break
+            case .enabled:
+                result = result.filter { $0.isEnabled }
+            case .disabled:
+                result = result.filter { !$0.isEnabled }
+            case .blocking:
+                result = result.filter { $0.ip == "0.0.0.0" || $0.ip == "127.0.0.1" && $0.hostname != "localhost" }
+            case .presets:
+                break
+            }
         }
 
         if !searchText.isEmpty {

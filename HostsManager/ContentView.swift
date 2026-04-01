@@ -159,10 +159,29 @@ struct ContentView: View {
     @State private var showDeleteConfirm = false
     @State private var viewMode: ViewMode = .table
     @State private var rawText = ""
+    @State private var selectedTag: String?
+    @State private var showCreateTagAlert = false
+    @State private var newTagName = ""
+    @State private var showRenameTagAlert = false
+    @State private var renameTagOldName = ""
+    @State private var renameTagNewName = ""
+    @State private var showDeleteTagConfirm = false
+    @State private var deleteTagTarget = ""
 
     var body: some View {
         NavigationSplitView {
-            SidebarView(selectedFilter: $selectedFilter, hostsManager: hostsManager)
+            SidebarView(
+                selectedFilter: $selectedFilter,
+                selectedTag: $selectedTag,
+                hostsManager: hostsManager,
+                showCreateTagAlert: $showCreateTagAlert,
+                newTagName: $newTagName,
+                showRenameTagAlert: $showRenameTagAlert,
+                renameTagOldName: $renameTagOldName,
+                renameTagNewName: $renameTagNewName,
+                showDeleteTagConfirm: $showDeleteTagConfirm,
+                deleteTagTarget: $deleteTagTarget
+            )
         } detail: {
             ZStack {
                 if viewMode == .text {
@@ -278,6 +297,45 @@ struct ContentView: View {
         } message: { entry in
             Text("Bạn có chắc muốn xóa entry \"\(entry.hostname)\"?")
         }
+        .alert("Tạo tag mới", isPresented: $showCreateTagAlert) {
+            TextField("Tên tag", text: $newTagName)
+            Button("Tạo") {
+                hostsManager.createTag(name: newTagName)
+                newTagName = ""
+            }
+            Button("Hủy", role: .cancel) {
+                newTagName = ""
+            }
+        }
+        .alert("Đổi tên tag", isPresented: $showRenameTagAlert) {
+            TextField("Tên mới", text: $renameTagNewName)
+            Button("Đổi tên") {
+                hostsManager.renameTag(oldName: renameTagOldName, newName: renameTagNewName)
+                if selectedTag == renameTagOldName {
+                    selectedTag = renameTagNewName
+                }
+                renameTagOldName = ""
+                renameTagNewName = ""
+            }
+            Button("Hủy", role: .cancel) {
+                renameTagOldName = ""
+                renameTagNewName = ""
+            }
+        }
+        .alert("Xác nhận xóa tag", isPresented: $showDeleteTagConfirm) {
+            Button("Xóa", role: .destructive) {
+                if selectedTag == deleteTagTarget {
+                    selectedTag = nil
+                }
+                hostsManager.deleteTag(name: deleteTagTarget)
+                deleteTagTarget = ""
+            }
+            Button("Hủy", role: .cancel) {
+                deleteTagTarget = ""
+            }
+        } message: {
+            Text("Xóa tag \"\(deleteTagTarget)\"? Các entry trong tag sẽ trở thành không có tag.")
+        }
     }
 
     private var rawTextEditorView: some View {
@@ -304,7 +362,7 @@ struct ContentView: View {
     }
 
     private var entriesListView: some View {
-        let filtered = hostsManager.filteredEntries(filter: selectedFilter, searchText: searchText)
+        let filtered = hostsManager.filteredEntries(filter: selectedFilter, searchText: searchText, selectedTag: selectedTag)
 
         return Group {
             if filtered.isEmpty {
@@ -351,6 +409,22 @@ struct ContentView: View {
                     }
                     .width(min: 80, ideal: 150)
 
+                    TableColumn("Tag") { entry in
+                        if let tag = entry.tag {
+                            Text(tag)
+                                .font(.caption)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(Color.accentColor.opacity(0.15))
+                                .cornerRadius(4)
+                        } else {
+                            Text("—")
+                                .foregroundColor(.secondary)
+                                .opacity(0.5)
+                        }
+                    }
+                    .width(min: 60, ideal: 100)
+
                     TableColumn("") { entry in
                         HStack(spacing: 4) {
                             Button {
@@ -382,34 +456,111 @@ struct ContentView: View {
 
 struct SidebarView: View {
     @Binding var selectedFilter: SidebarFilter
+    @Binding var selectedTag: String?
     @ObservedObject var hostsManager: HostsFileManager
+    @Binding var showCreateTagAlert: Bool
+    @Binding var newTagName: String
+    @Binding var showRenameTagAlert: Bool
+    @Binding var renameTagOldName: String
+    @Binding var renameTagNewName: String
+    @Binding var showDeleteTagConfirm: Bool
+    @Binding var deleteTagTarget: String
 
     var body: some View {
-        List(selection: $selectedFilter) {
+        List {
             Section("Bộ lọc") {
                 ForEach(SidebarFilter.allCases.filter { $0 != .presets }) { filter in
-                    Label {
-                        HStack {
-                            Text(filter.rawValue)
-                            Spacer()
-                            Text("\(hostsManager.entryCount(for: filter))")
-                                .foregroundColor(.secondary)
-                                .font(.caption)
+                    Button {
+                        selectedFilter = filter
+                        selectedTag = nil
+                    } label: {
+                        Label {
+                            HStack {
+                                Text(filter.rawValue)
+                                Spacer()
+                                Text("\(hostsManager.entryCount(for: filter))")
+                                    .foregroundColor(.secondary)
+                                    .font(.caption)
+                            }
+                        } icon: {
+                            Image(systemName: filter.icon)
                         }
-                    } icon: {
-                        Image(systemName: filter.icon)
                     }
-                    .tag(filter)
+                    .buttonStyle(.plain)
+                    .listRowBackground(selectedTag == nil && selectedFilter == filter ? Color.accentColor.opacity(0.2) : Color.clear)
                 }
             }
 
-            Section {
-                Label {
-                    Text(SidebarFilter.presets.rawValue)
-                } icon: {
-                    Image(systemName: SidebarFilter.presets.icon)
+            Section("Tags") {
+                ForEach(hostsManager.tags) { tag in
+                    HStack {
+                        Button {
+                            selectedTag = tag.name
+                        } label: {
+                            Label {
+                                HStack {
+                                    Text(tag.name)
+                                    Spacer()
+                                    Text("\(hostsManager.tagEntryCount(name: tag.name))")
+                                        .foregroundColor(.secondary)
+                                        .font(.caption)
+                                }
+                            } icon: {
+                                Image(systemName: "tag.fill")
+                                    .foregroundColor(.accentColor)
+                            }
+                        }
+                        .buttonStyle(.plain)
+
+                        Toggle("", isOn: Binding(
+                            get: { hostsManager.isTagEnabled(name: tag.name) },
+                            set: { _ in hostsManager.toggleTag(name: tag.name) }
+                        ))
+                        .toggleStyle(.switch)
+                        .controlSize(.small)
+                        .labelsHidden()
+                    }
+                    .listRowBackground(selectedTag == tag.name ? Color.accentColor.opacity(0.2) : Color.clear)
+                    .contextMenu {
+                        Button {
+                            renameTagOldName = tag.name
+                            renameTagNewName = tag.name
+                            showRenameTagAlert = true
+                        } label: {
+                            Label("Đổi tên", systemImage: "pencil")
+                        }
+                        Button(role: .destructive) {
+                            deleteTagTarget = tag.name
+                            showDeleteTagConfirm = true
+                        } label: {
+                            Label("Xóa tag", systemImage: "trash")
+                        }
+                    }
                 }
-                .tag(SidebarFilter.presets)
+
+                Button {
+                    newTagName = ""
+                    showCreateTagAlert = true
+                } label: {
+                    Label("Tạo tag mới...", systemImage: "plus.circle")
+                        .foregroundColor(.accentColor)
+                }
+                .buttonStyle(.plain)
+            }
+
+            Section {
+                Button {
+                    selectedFilter = .presets
+                    selectedTag = nil
+                } label: {
+                    Label {
+                        Text(SidebarFilter.presets.rawValue)
+                    } icon: {
+                        Image(systemName: SidebarFilter.presets.icon)
+                    }
+                }
+                .buttonStyle(.plain)
+                .listRowBackground(selectedTag == nil && selectedFilter == .presets ? Color.accentColor.opacity(0.2) : Color.clear)
             }
 
             if hostsManager.hasUnsavedChanges {
@@ -426,7 +577,7 @@ struct SidebarView: View {
 
         }
         .listStyle(.sidebar)
-        .navigationSplitViewColumnWidth(min: 180, ideal: 220)
+        .navigationSplitViewColumnWidth(min: 180, ideal: 240)
     }
 }
 
@@ -541,6 +692,7 @@ struct EntryFormSheet: View {
     @State private var ip = ""
     @State private var hostname = ""
     @State private var comment = ""
+    @State private var selectedTag: String = ""
     @State private var errorMessage = ""
 
     var isEditing: Bool {
@@ -586,6 +738,20 @@ struct EntryFormSheet: View {
                     .textFieldStyle(.roundedBorder)
             }
 
+            if !hostsManager.tags.isEmpty {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Tag")
+                        .font(.headline)
+                    Picker("Tag", selection: $selectedTag) {
+                        Text("Không có tag").tag("")
+                        ForEach(hostsManager.tags) { tag in
+                            Text(tag.name).tag(tag.name)
+                        }
+                    }
+                    .labelsHidden()
+                }
+            }
+
             if !errorMessage.isEmpty {
                 Text(errorMessage)
                     .foregroundColor(.red)
@@ -614,6 +780,7 @@ struct EntryFormSheet: View {
                 ip = entry.ip
                 hostname = entry.hostname
                 comment = entry.comment
+                selectedTag = entry.tag ?? ""
             }
         }
     }
@@ -633,14 +800,16 @@ struct EntryFormSheet: View {
         let trimmedHostname = hostname.trimmingCharacters(in: .whitespaces)
         let trimmedIP = ip.trimmingCharacters(in: .whitespaces)
 
+        let tagValue = selectedTag.isEmpty ? nil : selectedTag
+
         if case .add = mode {
             if hostsManager.hostnameExists(trimmedHostname) {
                 errorMessage = "Hostname \"\(trimmedHostname)\" đã tồn tại"
                 return
             }
-            hostsManager.addEntry(ip: trimmedIP, hostname: trimmedHostname, comment: comment.trimmingCharacters(in: .whitespaces))
+            hostsManager.addEntry(ip: trimmedIP, hostname: trimmedHostname, comment: comment.trimmingCharacters(in: .whitespaces), tag: tagValue)
         } else if case .edit(let entry) = mode {
-            hostsManager.updateEntry(id: entry.id, ip: trimmedIP, hostname: trimmedHostname, comment: comment.trimmingCharacters(in: .whitespaces))
+            hostsManager.updateEntry(id: entry.id, ip: trimmedIP, hostname: trimmedHostname, comment: comment.trimmingCharacters(in: .whitespaces), tag: tagValue)
         }
 
         dismiss()
