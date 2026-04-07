@@ -241,8 +241,7 @@ struct ContentView: View {
                         Text("Áp dụng")
                     }
                 }
-                .buttonStyle(.borderedProminent)
-                .tint(hostsManager.hasUnsavedChanges ? .blue : .gray)
+                .modifier(ApplyButtonStyleModifier(hasChanges: hostsManager.hasUnsavedChanges))
                 .disabled(!hostsManager.hasUnsavedChanges || hostsManager.isApplying)
                 .keyboardShortcut("s", modifiers: .command)
             }
@@ -852,11 +851,7 @@ struct ToastView: View {
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 10)
-        .background(.ultraThinMaterial, in: .rect(cornerRadius: 10))
-        .overlay(
-            RoundedRectangle(cornerRadius: 10)
-                .stroke(accentColor.opacity(0.3), lineWidth: 1)
-        )
+        .modifier(GlassBackgroundModifier(cornerRadius: 10, tintColor: accentColor))
         .shadow(color: .black.opacity(0.15), radius: 8, y: 4)
     }
 }
@@ -872,6 +867,46 @@ struct SearchableWithFocus: ViewModifier {
         } else {
             content
                 .searchable(text: $searchText, placement: .toolbar, prompt: "Tìm kiếm hostname, IP...")
+        }
+    }
+}
+
+// MARK: - Liquid Glass Modifiers
+
+struct GlassBackgroundModifier: ViewModifier {
+    let cornerRadius: CGFloat
+    var tintColor: Color = .clear
+
+    func body(content: Content) -> some View {
+        if #available(macOS 26, *) {
+            content
+                .glassEffect(
+                    tintColor == .clear ? .regular : .regular.tint(tintColor),
+                    in: .rect(cornerRadius: cornerRadius)
+                )
+        } else {
+            content
+                .background(.ultraThinMaterial, in: .rect(cornerRadius: cornerRadius))
+                .overlay(
+                    RoundedRectangle(cornerRadius: cornerRadius)
+                        .stroke(tintColor.opacity(0.3), lineWidth: tintColor == .clear ? 0 : 1)
+                )
+        }
+    }
+}
+
+struct ApplyButtonStyleModifier: ViewModifier {
+    let hasChanges: Bool
+
+    func body(content: Content) -> some View {
+        if #available(macOS 26, *) {
+            content
+                .buttonStyle(.glassProminent)
+                .tint(hasChanges ? .blue : .gray)
+        } else {
+            content
+                .buttonStyle(.borderedProminent)
+                .tint(hasChanges ? .blue : .gray)
         }
     }
 }
