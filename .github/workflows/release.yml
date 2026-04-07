@@ -11,10 +11,8 @@ permissions:
 jobs:
   build:
     runs-on: macos-14
-    env:
-      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Setup Xcode 15
         uses: maxim-lobanov/setup-xcode@v1
@@ -57,7 +55,7 @@ jobs:
             build/HostsManager-${{ github.ref_name }}.dmg
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v2.6.1
         with:
           files: |
             build/Build/Products/Release/HostsManager-${{ github.ref_name }}.zip
