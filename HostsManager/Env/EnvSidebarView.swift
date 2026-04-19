@@ -57,7 +57,7 @@ struct EnvSidebarView: View {
             }
         } icon: {
             Image(systemName: exists ? "folder.fill" : "folder.badge.questionmark")
-                .foregroundStyle(exists ? .tint : .secondary)
+                .foregroundStyle(exists ? Color.accentColor : Color.secondary)
         }
         .contextMenu {
             Button {
