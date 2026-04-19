@@ -4,6 +4,7 @@ import SwiftUI
 struct HostsManagerApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     @StateObject private var hostsManager = HostsFileManager()
+    @StateObject private var envManager = EnvFileManager()
 
     private var appVersion: String {
         Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? ""
@@ -13,6 +14,7 @@ struct HostsManagerApp: App {
         WindowGroup {
             ContentView()
                 .environmentObject(hostsManager)
+                .environmentObject(envManager)
                 .frame(minWidth: 800, minHeight: 500)
                 .navigationTitle("Hosts Manager v\(appVersion)")
         }
