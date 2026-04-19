@@ -15,6 +15,8 @@ struct EnvFilePane: View {
     @State private var profileSheetMode: EnvProfileSheetMode?
     @State private var pendingApplyProfileId: UUID?
     @State private var showApplyConfirm: Bool = false
+    @State private var viewMode: ViewMode = .table
+    @State private var rawText: String = ""
 
     private var currentFile: EnvFile? {
         guard let path = selectedFilePath else { return nil }
@@ -90,31 +92,47 @@ struct EnvFilePane: View {
     // MARK: - File tabs
 
     private var fileTabBar: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 6) {
-                if availableFiles.isEmpty {
-                    Text("Không tìm thấy file .env")
-                        .foregroundStyle(.secondary)
-                        .font(.caption)
-                        .padding(.horizontal, 12)
-                } else {
-                    ForEach(availableFiles, id: \.self) { path in
-                        fileTabButton(path)
+        HStack(spacing: 6) {
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 6) {
+                    if availableFiles.isEmpty {
+                        Text("Không tìm thấy file .env")
+                            .foregroundStyle(.secondary)
+                            .font(.caption)
+                            .padding(.horizontal, 12)
+                    } else {
+                        ForEach(availableFiles, id: \.self) { path in
+                            fileTabButton(path)
+                        }
                     }
                 }
-                Spacer()
-                Button {
-                    refreshFiles()
-                } label: {
-                    Image(systemName: "arrow.clockwise")
-                }
-                .buttonStyle(.borderless)
-                .help("Tải lại danh sách file")
-                .padding(.trailing, 8)
             }
-            .padding(.horizontal, 8)
-            .padding(.vertical, 6)
+
+            Spacer(minLength: 4)
+
+            Picker("Mode", selection: $viewMode) {
+                Image(systemName: "tablecells").tag(ViewMode.table)
+                Image(systemName: "doc.plaintext").tag(ViewMode.text)
+            }
+            .pickerStyle(.segmented)
+            .fixedSize()
+            .help("Chuyển đổi chế độ xem")
+            .disabled(currentFile == nil)
+            .onChange(of: viewMode) { newValue in
+                syncModeChange(to: newValue)
+            }
+
+            Button {
+                refreshFiles()
+            } label: {
+                Image(systemName: "arrow.clockwise")
+            }
+            .buttonStyle(.borderless)
+            .help("Tải lại danh sách file")
+            .padding(.trailing, 8)
         }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 6)
     }
 
     private func fileTabButton(_ path: String) -> some View {
@@ -153,7 +171,11 @@ struct EnvFilePane: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else if let file = currentFile {
-            entriesTable(file)
+            if viewMode == .text {
+                rawEditorView(file)
+            } else {
+                entriesTable(file)
+            }
         } else {
             VStack(spacing: 8) {
                 Spacer()
@@ -165,6 +187,29 @@ struct EnvFilePane: View {
                 Spacer()
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+    }
+
+    private func rawEditorView(_ file: EnvFile) -> some View {
+        VStack(spacing: 0) {
+            HStack {
+                Text(file.relativePath)
+                    .font(.system(.headline, design: .monospaced))
+                Spacer()
+                Text("\(rawText.components(separatedBy: "\n").count) dòng")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .background(Color(nsColor: .controlBackgroundColor))
+
+            Divider()
+
+            RawTextEditor(text: $rawText)
+                .onChange(of: rawText) { _ in
+                    envManager.markFileDirty(repoId: repo.id, fileId: file.id)
+                }
         }
     }
 
@@ -288,9 +333,10 @@ struct EnvFilePane: View {
             } label: {
                 Label("Thêm key", systemImage: "plus")
             }
-            .disabled(currentFile == nil)
+            .disabled(currentFile == nil || viewMode == .text)
 
             profileMenu
+                .disabled(viewMode == .text)
 
             Spacer()
 
@@ -368,6 +414,9 @@ struct EnvFilePane: View {
         do {
             try envManager.applyProfile(repoId: repo.id, profileId: id)
             refreshFiles()
+            if viewMode == .text, let file = currentFile {
+                rawText = EnvParser.format(file.entries)
+            }
         } catch {
             envManager.showToast("Lỗi: \(error.localizedDescription)", type: .error)
         }
@@ -388,8 +437,34 @@ struct EnvFilePane: View {
     }
 
     private func selectFile(_ path: String) {
+        // Commit pending raw edits on the previous file before switching away,
+        // otherwise the user's in-progress raw text would be lost silently.
+        if viewMode == .text, let oldFile = currentFile, oldFile.relativePath != path {
+            envManager.replaceEntriesFromRawText(
+                repoId: repo.id,
+                fileId: oldFile.id,
+                rawText: rawText
+            )
+        }
         selectedFilePath = path
         loadSelected(path)
+        if viewMode == .text, let file = currentFile {
+            rawText = EnvParser.format(file.entries)
+        }
+    }
+
+    private func syncModeChange(to newMode: ViewMode) {
+        guard let file = currentFile else { return }
+        if newMode == .text {
+            rawText = EnvParser.format(file.entries)
+            searchText = ""
+        } else {
+            envManager.replaceEntriesFromRawText(
+                repoId: repo.id,
+                fileId: file.id,
+                rawText: rawText
+            )
+        }
     }
 
     private func loadSelected(_ path: String) {
@@ -411,7 +486,22 @@ struct EnvFilePane: View {
     private func apply() {
         guard let file = currentFile else { return }
         do {
-            try envManager.applyChanges(repoId: repo.id, file: file)
+            if viewMode == .text {
+                try envManager.applyRawText(
+                    repoId: repo.id,
+                    fileId: file.id,
+                    relativePath: file.relativePath,
+                    rawText: rawText
+                )
+                if let refreshed = envManager.loadedFile(
+                    repoId: repo.id,
+                    relativePath: file.relativePath
+                ) {
+                    rawText = EnvParser.format(refreshed.entries)
+                }
+            } else {
+                try envManager.applyChanges(repoId: repo.id, file: file)
+            }
         } catch {
             envManager.showToast("Lỗi: \(error.localizedDescription)", type: .error)
         }

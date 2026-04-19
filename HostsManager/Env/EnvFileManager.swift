@@ -151,10 +151,70 @@ final class EnvFileManager: ObservableObject {
         try validateRelativePath(file.relativePath)
 
         let targetURL = URL(fileURLWithPath: repo.path).appendingPathComponent(file.relativePath)
+        let content = EnvParser.format(file.entries)
+        try writeContent(content, to: targetURL)
+
+        updateLoadedFile(repoId: repoId, fileId: file.id) { cached in
+            cached.entries = file.entries
+            cached.hasUnsavedChanges = false
+        }
+
+        showToast("Đã áp dụng \(file.relativePath)", type: .success)
+    }
+
+    // MARK: - Raw text editing
+
+    /// Parse raw text and replace cached entries for a file. Marks file dirty.
+    /// Used when the user switches from raw-text mode back to form mode.
+    func replaceEntriesFromRawText(repoId: UUID, fileId: UUID, rawText: String) {
+        let newEntries = EnvParser.parse(rawText)
+        updateLoadedFile(repoId: repoId, fileId: fileId) { file in
+            file.entries = newEntries
+            file.hasUnsavedChanges = true
+        }
+    }
+
+    /// Mark a cached file as having unsaved changes without re-parsing its entries.
+    /// Called on every keystroke in raw-text mode so the dirty indicator stays accurate
+    /// without paying parse cost per character.
+    func markFileDirty(repoId: UUID, fileId: UUID) {
+        updateLoadedFile(repoId: repoId, fileId: fileId) { file in
+            file.hasUnsavedChanges = true
+        }
+    }
+
+    /// Write raw text directly to disk (preserving user formatting verbatim), then
+    /// re-parse so the in-memory entry cache stays in sync with disk.
+    func applyRawText(
+        repoId: UUID,
+        fileId: UUID,
+        relativePath: String,
+        rawText: String
+    ) throws {
+        guard let repo = repos.first(where: { $0.id == repoId }) else {
+            throw EnvError.repoNotFound
+        }
+        try validateRelativePath(relativePath)
+
+        let content = rawText.hasSuffix("\n") ? rawText : rawText + "\n"
+        let targetURL = URL(fileURLWithPath: repo.path).appendingPathComponent(relativePath)
+        try writeContent(content, to: targetURL)
+
+        let reparsed = EnvParser.parse(content)
+        updateLoadedFile(repoId: repoId, fileId: fileId) { cached in
+            cached.entries = reparsed
+            cached.hasUnsavedChanges = false
+        }
+
+        showToast("Đã áp dụng \(relativePath)", type: .success)
+    }
+
+    /// Atomic write via temp file + replaceItemAt, preserves POSIX perms. Shared by
+    /// both form-mode and raw-mode apply paths.
+    private func writeContent(_ content: String, to targetURL: URL) throws {
         let tempURL = URL(fileURLWithPath: NSTemporaryDirectory())
             .appendingPathComponent("env_\(UUID().uuidString)")
 
-        let content = EnvParser.format(file.entries)
         do {
             try content.write(to: tempURL, atomically: true, encoding: .utf8)
         } catch {
@@ -181,13 +241,6 @@ final class EnvFileManager: ObservableObject {
                 ofItemAtPath: targetURL.path
             )
         }
-
-        updateLoadedFile(repoId: repoId, fileId: file.id) { cached in
-            cached.entries = file.entries
-            cached.hasUnsavedChanges = false
-        }
-
-        showToast("Đã áp dụng \(file.relativePath)", type: .success)
     }
 
     private func validateRelativePath(_ relativePath: String) throws {
