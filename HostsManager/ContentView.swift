@@ -16,16 +16,25 @@ enum AppTab: String, CaseIterable, Identifiable {
 
 struct ContentView: View {
     @State private var selectedTab: AppTab = .hosts
+    @AppStorage("appearanceMode") private var appearanceRaw: String = AppearanceMode.system.rawValue
+
+    private var appearance: AppearanceMode {
+        AppearanceMode(rawValue: appearanceRaw) ?? .system
+    }
 
     var body: some View {
         VStack(spacing: 0) {
-            Picker("", selection: $selectedTab) {
-                ForEach(AppTab.allCases) { tab in
-                    Label(tab.rawValue, systemImage: tab.icon).tag(tab)
+            HStack(spacing: 8) {
+                Picker("", selection: $selectedTab) {
+                    ForEach(AppTab.allCases) { tab in
+                        Label(tab.rawValue, systemImage: tab.icon).tag(tab)
+                    }
                 }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+
+                appearanceMenu
             }
-            .pickerStyle(.segmented)
-            .labelsHidden()
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
 
@@ -38,6 +47,28 @@ struct ContentView: View {
                 EnvView()
             }
         }
+        .preferredColorScheme(appearance.colorScheme)
+    }
+
+    private var appearanceMenu: some View {
+        Menu {
+            ForEach(AppearanceMode.allCases) { mode in
+                Button {
+                    appearanceRaw = mode.rawValue
+                } label: {
+                    if appearance == mode {
+                        Label(mode.label, systemImage: "checkmark")
+                    } else {
+                        Label(mode.label, systemImage: mode.icon)
+                    }
+                }
+            }
+        } label: {
+            Image(systemName: appearance.icon)
+        }
+        .menuStyle(.borderlessButton)
+        .fixedSize()
+        .help("Chế độ hiển thị")
     }
 }
 
