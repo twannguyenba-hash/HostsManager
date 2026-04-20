@@ -6,7 +6,7 @@ options:
   xcodeVersion: "15.0"
 settings:
   base:
-    MARKETING_VERSION: "1.7.3"
+    MARKETING_VERSION: "1.7.4"
     CURRENT_PROJECT_VERSION: "1"
     MACOSX_DEPLOYMENT_TARGET: "13.0"
     ARCHS: "arm64 x86_64"
