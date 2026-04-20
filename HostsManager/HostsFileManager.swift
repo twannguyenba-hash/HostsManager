@@ -353,6 +353,23 @@ class HostsFileManager: ObservableObject {
         hasUnsavedChanges = true
     }
 
+    @discardableResult
+    func duplicateEntry(id: UUID) -> HostEntry? {
+        guard let idx = entries.firstIndex(where: { $0.id == id }) else { return nil }
+        let source = entries[idx]
+        let copy = HostEntry(
+            ip: source.ip,
+            hostname: source.hostname,
+            comment: source.comment,
+            isEnabled: source.isEnabled,
+            isComment: source.isComment,
+            tag: source.tag
+        )
+        entries.insert(copy, at: idx + 1)
+        hasUnsavedChanges = true
+        return copy
+    }
+
     func toggleEntry(id: UUID) {
         if let index = entries.firstIndex(where: { $0.id == id }) {
             entries[index].isEnabled.toggle()

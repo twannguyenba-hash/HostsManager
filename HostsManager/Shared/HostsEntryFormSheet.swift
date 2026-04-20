@@ -62,9 +62,13 @@ struct EntryFormSheet: View {
                 if !hostsManager.tags.isEmpty {
                     Section {
                         Picker("Tag", selection: $selectedTag) {
-                            Text("Không có tag").tag("")
+                            Text("Không có tag")
+                                .frame(minWidth: 180, alignment: .leading)
+                                .tag("")
                             ForEach(hostsManager.tags) { tag in
-                                Text(tag.name).tag(tag.name)
+                                Text(tag.name)
+                                    .frame(minWidth: 180, alignment: .leading)
+                                    .tag(tag.name)
                             }
                         }
                     }

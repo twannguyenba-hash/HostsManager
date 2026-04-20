@@ -305,6 +305,14 @@ struct HostsView: View {
             Label(entry.isEnabled ? "Tắt" : "Bật", systemImage: entry.isEnabled ? "pause.circle" : "play.circle")
         }
 
+        Button {
+            if let copy = hostsManager.duplicateEntry(id: entry.id) {
+                editingEntry = copy
+            }
+        } label: {
+            Label("Nhân đôi", systemImage: "plus.square.on.square")
+        }
+
         Divider()
 
         Button(role: .destructive) {
