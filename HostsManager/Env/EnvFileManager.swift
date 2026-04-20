@@ -301,7 +301,9 @@ final class EnvFileManager: ObservableObject {
         }
     }
 
-    func duplicateEntry(repoId: UUID, fileId: UUID, entryId: UUID) {
+    @discardableResult
+    func duplicateEntry(repoId: UUID, fileId: UUID, entryId: UUID) -> EnvEntry? {
+        var inserted: EnvEntry?
         updateLoadedFile(repoId: repoId, fileId: fileId) { file in
             guard let idx = file.entries.firstIndex(where: { $0.id == entryId }) else { return }
             let source = file.entries[idx]
@@ -317,7 +319,9 @@ final class EnvFileManager: ObservableObject {
             )
             file.entries.insert(copy, at: idx + 1)
             file.hasUnsavedChanges = true
+            inserted = copy
         }
+        return inserted
     }
 
     private static func uniqueKey(base: String, existing: Set<String>) -> String {

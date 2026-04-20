@@ -8,6 +8,7 @@ struct EnvFilePane: View {
     private var availableFiles: [String] { discoverResult.paths }
     @State private var selectedFilePath: String?
     @State private var searchText: String = ""
+    @State private var isSearchFocused: Bool = false
     @State private var editingEntry: EnvEntry?
     @State private var showAddSheet: Bool = false
     @State private var deleteTarget: EnvEntry?
@@ -24,14 +25,18 @@ struct EnvFilePane: View {
         return envManager.loadedFile(repoId: repo.id, relativePath: path)
     }
 
+    private var hasUnsavedChanges: Bool {
+        currentFile?.hasUnsavedChanges == true
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             fileTabBar
             Divider()
             mainContent
-            Divider()
-            footer
         }
+        .modifier(SearchableWithFocus(searchText: $searchText, isPresented: $isSearchFocused))
+        .toolbar { toolbarContent }
         .onAppear(perform: refreshFiles)
         .onChange(of: repo.id) { _ in refreshFiles() }
         .sheet(isPresented: $showAddSheet) {
@@ -90,30 +95,16 @@ struct EnvFilePane: View {
         }
     }
 
-    // MARK: - File tabs
+    // MARK: - Toolbar
 
-    private var fileTabBar: some View {
-        HStack(spacing: 6) {
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 6) {
-                    if availableFiles.isEmpty {
-                        emptyTabMessage
-                    } else {
-                        ForEach(availableFiles, id: \.self) { path in
-                            fileTabButton(path)
-                        }
-                    }
-                }
-            }
-
-            Spacer(minLength: 4)
-
+    @ToolbarContentBuilder
+    private var toolbarContent: some ToolbarContent {
+        ToolbarItemGroup(placement: .primaryAction) {
             Picker("Mode", selection: $viewMode) {
                 Image(systemName: "tablecells").tag(ViewMode.table)
                 Image(systemName: "doc.plaintext").tag(ViewMode.text)
             }
             .pickerStyle(.segmented)
-            .fixedSize()
             .help("Chuyển đổi chế độ xem")
             .disabled(currentFile == nil)
             .onChange(of: viewMode) { newValue in
@@ -121,16 +112,84 @@ struct EnvFilePane: View {
             }
 
             Button {
-                refreshFiles()
+                showAddSheet = true
             } label: {
-                Image(systemName: "arrow.clockwise")
+                Image(systemName: "plus")
             }
-            .buttonStyle(.borderless)
-            .help("Tải lại danh sách file")
-            .padding(.trailing, 8)
+            .help("Thêm key mới")
+            .disabled(currentFile == nil || viewMode == .text)
+
+            Menu {
+                if !repo.profiles.isEmpty {
+                    Section("Áp dụng profile") {
+                        ForEach(repo.profiles) { profile in
+                            Button {
+                                requestApplyProfile(profile.id)
+                            } label: {
+                                Label(
+                                    "\(profile.name) (\(profile.files.count) files)",
+                                    systemImage: "arrow.triangle.2.circlepath"
+                                )
+                            }
+                        }
+                    }
+                    Divider()
+                }
+                Button {
+                    profileSheetMode = .save(repoId: repo.id)
+                } label: {
+                    Label("Lưu state hiện tại...", systemImage: "square.and.arrow.down")
+                }
+                Button {
+                    profileSheetMode = .manage(repoId: repo.id)
+                } label: {
+                    Label("Quản lý profiles...", systemImage: "slider.horizontal.3")
+                }
+                .disabled(repo.profiles.isEmpty)
+                Divider()
+                Button {
+                    refreshFiles()
+                } label: {
+                    Label("Tải lại danh sách file", systemImage: "arrow.clockwise")
+                }
+            } label: {
+                Image(systemName: "ellipsis.circle")
+            }
+            .disabled(viewMode == .text)
+
+            Button {
+                apply()
+            } label: {
+                HStack(spacing: 4) {
+                    Image(systemName: hasUnsavedChanges ? "arrow.up.circle.fill" : "checkmark.circle")
+                        .modifier(PulseEffectModifier(isActive: hasUnsavedChanges))
+                    Text("Áp dụng")
+                }
+            }
+            .buttonStyle(.borderedProminent)
+            .tint(hasUnsavedChanges ? .accentColor : .secondary)
+            .disabled(!hasUnsavedChanges)
+            .keyboardShortcut("s", modifiers: .command)
+            .animation(.easeInOut(duration: 0.2), value: hasUnsavedChanges)
         }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 6)
+    }
+
+    // MARK: - File tabs
+
+    private var fileTabBar: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 6) {
+                if availableFiles.isEmpty {
+                    emptyTabMessage
+                } else {
+                    ForEach(availableFiles, id: \.self) { path in
+                        fileTabButton(path)
+                    }
+                }
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 6)
+        }
     }
 
     @ViewBuilder
@@ -252,25 +311,7 @@ struct EnvFilePane: View {
 
     private func entriesTable(_ file: EnvFile) -> some View {
         let rows = filteredEntries(file)
-        return VStack(spacing: 0) {
-            HStack {
-                Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
-                TextField("Tìm key / value", text: $searchText)
-                    .textFieldStyle(.plain)
-                if !searchText.isEmpty {
-                    Button {
-                        searchText = ""
-                    } label: {
-                        Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary)
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 6)
-
-            Divider()
-
+        return Group {
             if rows.isEmpty {
                 VStack(spacing: 8) {
                     Spacer()
@@ -299,11 +340,11 @@ struct EnvFilePane: View {
                                 .labelsHidden()
                             }
                         }
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .frame(maxWidth: .infinity, alignment: .center)
                         .contentShape(Rectangle())
                         .contextMenu { entryContextMenu(file: file, entry: entry) }
                     }
-                    .width(40)
+                    .width(50)
 
                     TableColumn("Key") { entry in
                         Group {
@@ -358,26 +399,18 @@ struct EnvFilePane: View {
                     TableColumn("") { entry in
                         Group {
                             if !entry.isBlankOrComment {
-                                HStack(spacing: 6) {
-                                    Button {
-                                        editingEntry = entry
-                                    } label: {
-                                        Image(systemName: "pencil")
-                                    }
-                                    .buttonStyle(.borderless)
-                                    Button {
+                                EntryActionButtons(
+                                    onEdit: { editingEntry = entry },
+                                    onDelete: {
                                         deleteTarget = entry
                                         showDeleteConfirm = true
-                                    } label: {
-                                        Image(systemName: "trash").foregroundStyle(.red)
                                     }
-                                    .buttonStyle(.borderless)
-                                }
+                                )
+                                .contextMenu { entryContextMenu(file: file, entry: entry) }
                             }
                         }
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .frame(maxWidth: .infinity, alignment: .center)
                         .contentShape(Rectangle())
-                        .contextMenu { entryContextMenu(file: file, entry: entry) }
                     }
                     .width(60)
                 }
@@ -405,7 +438,13 @@ struct EnvFilePane: View {
             }
 
             Button {
-                envManager.duplicateEntry(repoId: repo.id, fileId: file.id, entryId: entry.id)
+                if let copy = envManager.duplicateEntry(
+                    repoId: repo.id,
+                    fileId: file.id,
+                    entryId: entry.id
+                ) {
+                    editingEntry = copy
+                }
             } label: {
                 Label("Nhân đôi", systemImage: "plus.square.on.square")
             }
@@ -421,84 +460,11 @@ struct EnvFilePane: View {
         }
     }
 
-    // MARK: - Footer
-
-    private var footer: some View {
-        HStack {
-            Button {
-                showAddSheet = true
-            } label: {
-                Label("Thêm key", systemImage: "plus")
-            }
-            .disabled(currentFile == nil || viewMode == .text)
-
-            profileMenu
-                .disabled(viewMode == .text)
-
-            Spacer()
-
-            if currentFile?.hasUnsavedChanges == true {
-                Text("Có thay đổi chưa lưu")
-                    .foregroundStyle(.orange)
-                    .font(.caption)
-            }
-
-            Button {
-                apply()
-            } label: {
-                HStack(spacing: 4) {
-                    Image(systemName: "arrow.up.circle.fill")
-                        .modifier(PulseEffectModifier(isActive: currentFile?.hasUnsavedChanges == true))
-                    Text("Áp dụng")
-                }
-            }
-            .buttonStyle(.borderedProminent)
-            .keyboardShortcut("s", modifiers: .command)
-            .disabled(currentFile?.hasUnsavedChanges != true)
-        }
-        .padding(10)
-    }
-
-    // MARK: - Profile menu
-
-    private var profileMenu: some View {
-        Menu {
-            if !repo.profiles.isEmpty {
-                Section("Áp dụng profile") {
-                    ForEach(repo.profiles) { profile in
-                        Button {
-                            requestApplyProfile(profile.id)
-                        } label: {
-                            Label(
-                                "\(profile.name) (\(profile.files.count) files)",
-                                systemImage: "arrow.triangle.2.circlepath"
-                            )
-                        }
-                    }
-                }
-                Divider()
-            }
-            Button {
-                profileSheetMode = .save(repoId: repo.id)
-            } label: {
-                Label("Lưu state hiện tại...", systemImage: "square.and.arrow.down")
-            }
-            Button {
-                profileSheetMode = .manage(repoId: repo.id)
-            } label: {
-                Label("Quản lý profiles...", systemImage: "slider.horizontal.3")
-            }
-            .disabled(repo.profiles.isEmpty)
-        } label: {
-            Label("Profiles", systemImage: "square.stack.3d.up")
-        }
-        .menuStyle(.borderlessButton)
-        .fixedSize()
-    }
+    // MARK: - Profile actions
 
     private func requestApplyProfile(_ id: UUID) {
         pendingApplyProfileId = id
-        if currentFile?.hasUnsavedChanges == true {
+        if hasUnsavedChanges {
             showApplyConfirm = true
         } else {
             performApplyProfile()
