@@ -62,7 +62,8 @@ struct HostsView: View {
 
     @ToolbarContentBuilder
     private var toolbarContent: some ToolbarContent {
-        ToolbarItemGroup(placement: .primaryAction) {
+        // Left: secondary view controls — tách riêng để toolbar bên phải sạch chỉ chứa primary actions
+        ToolbarItemGroup(placement: .navigation) {
             Picker("Mode", selection: $viewMode) {
                 Image(systemName: "tablecells").tag(ViewMode.table)
                 Image(systemName: "doc.plaintext").tag(ViewMode.text)
@@ -74,14 +75,16 @@ struct HostsView: View {
                     rawText = hostsManager.generateHostsContent()
                     searchText = ""
                 } else {
-                    // Defer @Published mutation ra khỏi view update tránh "Publishing from within view updates"
                     let snapshot = rawText
                     DispatchQueue.main.async {
                         hostsManager.replaceContentFromRawText(snapshot)
                     }
                 }
             }
+        }
 
+        // Right: primary actions
+        ToolbarItemGroup(placement: .primaryAction) {
             Button {
                 showAddSheet = true
             } label: {
@@ -91,58 +94,68 @@ struct HostsView: View {
             .disabled(viewMode == .text)
 
             Menu {
-                Button {
-                    showImportSheet = true
-                } label: {
-                    Label("Import từ text", systemImage: "square.and.arrow.down")
-                }
-                Button {
-                    hostsManager.exportToClipboard()
-                } label: {
-                    Label("Export vào clipboard", systemImage: "doc.on.clipboard")
-                }
-                Divider()
-                Button {
-                    hostsManager.createBackup()
-                } label: {
-                    Label("Tạo backup", systemImage: "externaldrive.badge.plus")
-                }
-                Button {
-                    hostsManager.loadHostsFile()
-                    if viewMode == .text {
-                        rawText = hostsManager.generateHostsContent()
+                Section("Import / Export") {
+                    Button {
+                        showImportSheet = true
+                    } label: {
+                        Label("Import từ text", systemImage: "square.and.arrow.down")
                     }
-                } label: {
-                    Label("Tải lại từ file", systemImage: "arrow.clockwise")
+                    Button {
+                        hostsManager.exportToClipboard()
+                    } label: {
+                        Label("Export vào clipboard", systemImage: "doc.on.clipboard")
+                    }
+                }
+                Section("File") {
+                    Button {
+                        hostsManager.createBackup()
+                    } label: {
+                        Label("Tạo backup", systemImage: "externaldrive.badge.plus")
+                    }
+                    Button {
+                        hostsManager.loadHostsFile()
+                        if viewMode == .text {
+                            rawText = hostsManager.generateHostsContent()
+                        }
+                    } label: {
+                        Label("Tải lại từ file", systemImage: "arrow.clockwise")
+                    }
                 }
             } label: {
                 Image(systemName: "ellipsis.circle")
             }
+            .menuStyle(.borderlessButton)
+            .help("Tuỳ chọn khác")
             .disabled(viewMode == .text)
 
-            Button {
-                if viewMode == .text {
-                    hostsManager.applyRawText(rawText)
-                } else {
-                    hostsManager.applyChanges()
-                }
-            } label: {
-                HStack(spacing: 4) {
-                    if hostsManager.isApplying {
-                        ProgressView().controlSize(.small)
-                    } else {
-                        Image(systemName: hostsManager.hasUnsavedChanges ? "arrow.up.circle.fill" : "checkmark.circle")
-                            .modifier(PulseEffectModifier(isActive: hostsManager.hasUnsavedChanges))
-                    }
-                    Text(hostsManager.isApplying ? "Đang lưu..." : "Áp dụng")
-                }
-            }
-            .buttonStyle(.borderedProminent)
-            .tint(hostsManager.hasUnsavedChanges ? .accentColor : .secondary)
-            .disabled(!hostsManager.hasUnsavedChanges || hostsManager.isApplying)
-            .keyboardShortcut("s", modifiers: .command)
-            .animation(.easeInOut(duration: 0.2), value: hostsManager.hasUnsavedChanges)
+            applyButton
         }
+    }
+
+    private var applyButton: some View {
+        Button {
+            if viewMode == .text {
+                hostsManager.applyRawText(rawText)
+            } else {
+                hostsManager.applyChanges()
+            }
+        } label: {
+            HStack(spacing: 6) {
+                if hostsManager.isApplying {
+                    ProgressView().controlSize(.small)
+                } else {
+                    Image(systemName: hostsManager.hasUnsavedChanges ? "arrow.up.circle.fill" : "checkmark.circle")
+                        .modifier(PulseEffectModifier(isActive: hostsManager.hasUnsavedChanges))
+                }
+                Text(hostsManager.isApplying ? "Đang lưu" : "Áp dụng")
+                    .fontWeight(.medium)
+            }
+        }
+        .buttonStyle(.borderedProminent)
+        .tint(hostsManager.hasUnsavedChanges ? .accentColor : .secondary)
+        .disabled(!hostsManager.hasUnsavedChanges || hostsManager.isApplying)
+        .keyboardShortcut("s", modifiers: .command)
+        .animation(.easeInOut(duration: 0.2), value: hostsManager.hasUnsavedChanges)
     }
 
     private var rawTextEditorView: some View {
@@ -210,27 +223,15 @@ struct HostsView: View {
     }
 
     private var emptyView: some View {
-        Group {
-            if #available(macOS 14.0, *) {
-                ContentUnavailableView {
-                    Label("Không có entry nào", systemImage: "doc.text.magnifyingglass")
-                } description: {
-                    if !searchText.isEmpty {
-                        Text("Thử tìm kiếm với từ khóa khác")
-                    }
-                }
-            } else {
-                VStack(spacing: 12) {
-                    Image(systemName: "doc.text.magnifyingglass")
-                        .font(.system(size: 48))
-                        .foregroundStyle(.secondary)
-                    Text("Không có entry nào")
-                        .font(.title3)
-                        .foregroundStyle(.secondary)
-                }
-            }
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        EmptyStateView(
+            icon: "doc.text.magnifyingglass",
+            title: "Không có entry nào",
+            message: searchText.isEmpty
+                ? (currentTag != nil ? "Tag này chưa có entry. Thêm entry mới hoặc chọn bộ lọc khác." : nil)
+                : "Thử tìm kiếm với từ khóa khác.",
+            actionLabel: searchText.isEmpty && currentTag == nil ? "Thêm entry mới" : nil,
+            action: searchText.isEmpty && currentTag == nil ? { showAddSheet = true } : nil
+        )
     }
 
     private func entriesTable(_ filtered: [HostEntry]) -> some View {
@@ -250,9 +251,9 @@ struct HostsView: View {
 
             TableColumn("IP") { entry in
                 Text(entry.ip)
-                    .font(.system(.body, design: .monospaced))
-                    .foregroundStyle(entry.ip == "0.0.0.0" ? Color.red : Color.green)
-                    .opacity(entry.isEnabled ? 1.0 : 0.5)
+                    .font(.system(.body, design: .monospaced).weight(.regular))
+                    .foregroundStyle(ipColor(for: entry))
+                    .opacity(entry.isEnabled ? 1.0 : 0.45)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .contentShape(Rectangle())
                     .contextMenu { entryContextMenu(entry: entry) }
@@ -261,7 +262,8 @@ struct HostsView: View {
 
             TableColumn("Hostname") { entry in
                 Text(entry.hostname)
-                    .font(.system(.body, design: .monospaced))
+                    .font(.system(.body, design: .monospaced).weight(entry.isEnabled ? .medium : .regular))
+                    .foregroundStyle(.primary)
                     .opacity(entry.isEnabled ? 1.0 : 0.5)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .contentShape(Rectangle())
@@ -271,6 +273,7 @@ struct HostsView: View {
 
             TableColumn("Comment") { entry in
                 Text(entry.comment)
+                    .font(.callout)
                     .foregroundStyle(.secondary)
                     .opacity(entry.isEnabled ? 1.0 : 0.5)
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -282,12 +285,7 @@ struct HostsView: View {
             TableColumn("Tag") { entry in
                 Group {
                     if let tag = entry.tag {
-                        Text(tag)
-                            .font(.caption)
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 2)
-                            .background(Color.accentColor.opacity(0.15))
-                            .clipShape(.rect(cornerRadius: 4))
+                        TagPill(name: tag)
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -309,6 +307,14 @@ struct HostsView: View {
             .width(60)
         }
         .tableStyle(.bordered(alternatesRowBackgrounds: true))
+    }
+
+    /// Blocking entries (0.0.0.0 hoặc 127.0.0.1 → non-localhost) hiện đỏ; localhost/loopback xanh nhạt; còn lại xanh primary.
+    private func ipColor(for entry: HostEntry) -> Color {
+        if entry.ip == "0.0.0.0" { return .red }
+        if entry.ip == "127.0.0.1" && entry.hostname != "localhost" { return .red }
+        if entry.ip == "127.0.0.1" || entry.ip == "::1" { return .secondary }
+        return .green
     }
 
     @ViewBuilder

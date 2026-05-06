@@ -30,22 +30,11 @@ struct EnvView: View {
            let repo = envManager.repos.first(where: { $0.id == repoId }) {
             EnvFilePane(repo: repo)
         } else {
-            VStack(spacing: 12) {
-                Spacer()
-                Image(systemName: "folder.badge.plus")
-                    .font(.system(size: 48))
-                    .foregroundStyle(.secondary)
-                Text("Chưa có repo nào")
-                    .font(.title3)
-                    .foregroundStyle(.secondary)
-                Text("Thêm repo FE ở sidebar để bắt đầu quản lý file .env.")
-                    .font(.caption)
-                    .foregroundStyle(.tertiary)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, 40)
-                Spacer()
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            EmptyStateView(
+                icon: "folder.badge.plus",
+                title: "Chưa có repo nào",
+                message: "Thêm repo frontend ở sidebar để bắt đầu quản lý file .env."
+            )
         }
     }
 }

@@ -21,9 +21,14 @@ struct EnvSidebarView: View {
         )) {
             Section("Repos") {
                 if envManager.repos.isEmpty {
-                    Text("Chưa có repo nào")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                    HStack(spacing: 8) {
+                        Image(systemName: "folder.badge.questionmark")
+                            .foregroundStyle(.secondary)
+                        Text("Chưa có repo")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding(.vertical, 4)
                 } else {
                     ForEach(envManager.repos) { repo in
                         repoRow(repo)

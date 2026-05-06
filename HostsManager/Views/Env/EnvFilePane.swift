@@ -97,7 +97,8 @@ struct EnvFilePane: View {
 
     @ToolbarContentBuilder
     private var toolbarContent: some ToolbarContent {
-        ToolbarItemGroup(placement: .primaryAction) {
+        // Left: secondary view controls
+        ToolbarItemGroup(placement: .navigation) {
             Picker("Mode", selection: $viewMode) {
                 Image(systemName: "tablecells").tag(ViewMode.table)
                 Image(systemName: "doc.plaintext").tag(ViewMode.text)
@@ -108,7 +109,10 @@ struct EnvFilePane: View {
             .onChange(of: viewMode) { newValue in
                 syncModeChange(to: newValue)
             }
+        }
 
+        // Right: primary actions
+        ToolbarItemGroup(placement: .primaryAction) {
             Button {
                 showAddSheet = true
             } label: {
@@ -131,45 +135,54 @@ struct EnvFilePane: View {
                             }
                         }
                     }
-                    Divider()
                 }
-                Button {
-                    profileSheetMode = .save(repoId: repo.id)
-                } label: {
-                    Label("Lưu state hiện tại...", systemImage: "square.and.arrow.down")
+                Section("Profiles") {
+                    Button {
+                        profileSheetMode = .save(repoId: repo.id)
+                    } label: {
+                        Label("Lưu state hiện tại...", systemImage: "square.and.arrow.down")
+                    }
+                    Button {
+                        profileSheetMode = .manage(repoId: repo.id)
+                    } label: {
+                        Label("Quản lý profiles...", systemImage: "slider.horizontal.3")
+                    }
+                    .disabled(repo.profiles.isEmpty)
                 }
-                Button {
-                    profileSheetMode = .manage(repoId: repo.id)
-                } label: {
-                    Label("Quản lý profiles...", systemImage: "slider.horizontal.3")
-                }
-                .disabled(repo.profiles.isEmpty)
-                Divider()
-                Button {
-                    refreshFiles()
-                } label: {
-                    Label("Tải lại danh sách file", systemImage: "arrow.clockwise")
+                Section("File") {
+                    Button {
+                        refreshFiles()
+                    } label: {
+                        Label("Tải lại danh sách file", systemImage: "arrow.clockwise")
+                    }
                 }
             } label: {
                 Image(systemName: "ellipsis.circle")
             }
+            .menuStyle(.borderlessButton)
+            .help("Tuỳ chọn khác")
             .disabled(viewMode == .text)
 
-            Button {
-                apply()
-            } label: {
-                HStack(spacing: 4) {
-                    Image(systemName: hasUnsavedChanges ? "arrow.up.circle.fill" : "checkmark.circle")
-                        .modifier(PulseEffectModifier(isActive: hasUnsavedChanges))
-                    Text("Áp dụng")
-                }
-            }
-            .buttonStyle(.borderedProminent)
-            .tint(hasUnsavedChanges ? .accentColor : .secondary)
-            .disabled(!hasUnsavedChanges)
-            .keyboardShortcut("s", modifiers: .command)
-            .animation(.easeInOut(duration: 0.2), value: hasUnsavedChanges)
+            applyButton
         }
+    }
+
+    private var applyButton: some View {
+        Button {
+            apply()
+        } label: {
+            HStack(spacing: 6) {
+                Image(systemName: hasUnsavedChanges ? "arrow.up.circle.fill" : "checkmark.circle")
+                    .modifier(PulseEffectModifier(isActive: hasUnsavedChanges))
+                Text("Áp dụng")
+                    .fontWeight(.medium)
+            }
+        }
+        .buttonStyle(.borderedProminent)
+        .tint(hasUnsavedChanges ? .accentColor : .secondary)
+        .disabled(!hasUnsavedChanges)
+        .keyboardShortcut("s", modifiers: .command)
+        .animation(.easeInOut(duration: 0.2), value: hasUnsavedChanges)
     }
 
     // MARK: - File tabs
@@ -236,16 +249,25 @@ struct EnvFilePane: View {
         return Button {
             selectFile(path)
         } label: {
-            HStack(spacing: 4) {
-                Text(path).font(.system(.body, design: .monospaced))
+            HStack(spacing: 6) {
+                Text(path)
+                    .font(.system(.body, design: .monospaced).weight(isSelected ? .semibold : .regular))
+                    .foregroundStyle(isSelected ? Color.accentColor : Color.primary)
                 if hasChanges {
-                    Circle().fill(Color.orange).frame(width: 6, height: 6)
+                    Circle()
+                        .fill(Color.orange)
+                        .frame(width: 6, height: 6)
+                        .help("Có thay đổi chưa lưu")
                 }
             }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 4)
-            .background(isSelected ? Color.accentColor.opacity(0.2) : Color.clear)
-            .clipShape(.rect(cornerRadius: 6))
+            .padding(.horizontal, 12)
+            .padding(.vertical, 5)
+            .background(isSelected ? Color.accentColor.opacity(0.15) : Color.clear)
+            .overlay(
+                Capsule()
+                    .strokeBorder(isSelected ? Color.accentColor.opacity(0.3) : Color.clear, lineWidth: 1)
+            )
+            .clipShape(Capsule(style: .continuous))
         }
         .buttonStyle(.plain)
     }
@@ -255,26 +277,13 @@ struct EnvFilePane: View {
     @ViewBuilder
     private var mainContent: some View {
         if let error = loadError {
-            VStack(spacing: 8) {
-                Spacer()
-                Image(systemName: "exclamationmark.triangle")
-                    .font(.system(size: 32))
-                    .foregroundStyle(.orange)
-                Text(error).foregroundStyle(.secondary).font(.callout)
-                Spacer()
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            ErrorStateView(
+                message: error,
+                retryLabel: "Tải lại",
+                onRetry: refreshFiles
+            )
         } else if isLoadingFile && currentFile == nil {
-            VStack(spacing: 12) {
-                Spacer()
-                ProgressView()
-                    .controlSize(.regular)
-                Text("Đang đọc \(loadingPath ?? "")")
-                    .font(.system(.caption, design: .monospaced))
-                    .foregroundStyle(.secondary)
-                Spacer()
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            LoadingStateView(label: "Đang đọc \(loadingPath ?? "")")
         } else if let file = currentFile {
             if viewMode == .text {
                 rawEditorView(file)
@@ -282,16 +291,13 @@ struct EnvFilePane: View {
                 entriesTable(file)
             }
         } else {
-            VStack(spacing: 8) {
-                Spacer()
-                Image(systemName: "doc.text")
-                    .font(.system(size: 32))
-                    .foregroundStyle(.secondary)
-                Text("Chọn một file .env phía trên")
-                    .foregroundStyle(.secondary)
-                Spacer()
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            EmptyStateView(
+                icon: "doc.text",
+                title: availableFiles.isEmpty ? "Không có file .env" : "Chọn một file .env",
+                message: availableFiles.isEmpty
+                    ? "Repo này không có file .env hoặc .env.local."
+                    : "Chọn file ở thanh tab phía trên để xem nội dung."
+            )
         }
     }
 
@@ -340,13 +346,15 @@ struct EnvFilePane: View {
         let rows = filteredEntries(file)
         return Group {
             if rows.isEmpty {
-                VStack(spacing: 8) {
-                    Spacer()
-                    Text(searchText.isEmpty ? "File trống" : "Không có kết quả")
-                        .foregroundStyle(.secondary)
-                    Spacer()
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                EmptyStateView(
+                    icon: searchText.isEmpty ? "doc.plaintext" : "magnifyingglass",
+                    title: searchText.isEmpty ? "File trống" : "Không có kết quả",
+                    message: searchText.isEmpty
+                        ? "File này chưa có key nào. Thêm key mới hoặc dùng raw mode để paste content."
+                        : "Thử tìm kiếm với từ khóa khác.",
+                    actionLabel: searchText.isEmpty ? "Thêm key mới" : nil,
+                    action: searchText.isEmpty ? { showAddSheet = true } : nil
+                )
             } else {
                 Table(rows) {
                     TableColumn("") { entry in
@@ -382,7 +390,8 @@ struct EnvFilePane: View {
                                     .italic()
                             } else {
                                 Text(entry.key)
-                                    .font(.system(.body, design: .monospaced))
+                                    .font(.system(.body, design: .monospaced).weight(entry.isEnabled ? .medium : .regular))
+                                    .foregroundStyle(.primary)
                                     .opacity(entry.isEnabled ? 1.0 : 0.5)
                             }
                         }
@@ -397,6 +406,7 @@ struct EnvFilePane: View {
                             if !entry.isBlankOrComment {
                                 Text(entry.value)
                                     .font(.system(.body, design: .monospaced))
+                                    .foregroundStyle(.secondary)
                                     .opacity(entry.isEnabled ? 1.0 : 0.5)
                                     .lineLimit(1)
                                     .truncationMode(.tail)
@@ -413,6 +423,7 @@ struct EnvFilePane: View {
                         Group {
                             if !entry.isBlankOrComment {
                                 Text(entry.comment)
+                                    .font(.callout)
                                     .foregroundStyle(.secondary)
                                     .lineLimit(1)
                             }
