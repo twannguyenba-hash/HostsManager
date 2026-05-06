@@ -74,7 +74,11 @@ struct HostsView: View {
                     rawText = hostsManager.generateHostsContent()
                     searchText = ""
                 } else {
-                    hostsManager.replaceContentFromRawText(rawText)
+                    // Defer @Published mutation ra khỏi view update tránh "Publishing from within view updates"
+                    let snapshot = rawText
+                    DispatchQueue.main.async {
+                        hostsManager.replaceContentFromRawText(snapshot)
+                    }
                 }
             }
 
@@ -146,7 +150,7 @@ struct HostsView: View {
             HStack {
                 Text("Raw Hosts Editor").font(.headline)
                 Spacer()
-                Text("\(rawText.components(separatedBy: "\n").count) dòng")
+                Text("\(lineCount(rawText)) dòng")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -158,9 +162,25 @@ struct HostsView: View {
 
             RawTextEditor(text: $rawText)
                 .onChange(of: rawText) { _ in
-                    hostsManager.hasUnsavedChanges = true
+                    guard !hostsManager.hasUnsavedChanges else { return }
+                    DispatchQueue.main.async {
+                        hostsManager.hasUnsavedChanges = true
+                    }
                 }
         }
+    }
+
+    /// Đếm dòng bằng utf8 byte scan — tránh `components(separatedBy:)` cấp phát mảng String mỗi keystroke.
+    private func lineCount(_ s: String) -> Int {
+        if s.isEmpty { return 1 }
+        var count = 1
+        for byte in s.utf8 where byte == 0x0A {
+            count += 1
+        }
+        if s.utf8.last == 0x0A {
+            count -= 1
+        }
+        return count
     }
 
     private var currentFilter: SidebarFilter {

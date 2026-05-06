@@ -286,22 +286,23 @@ class HostsFileManager: ObservableObject {
         if let tagIndex = tags.firstIndex(where: { $0.name == oldName }) {
             tags[tagIndex].name = trimmed
         }
-        for i in entries.indices {
-            if entries[i].tag == oldName {
-                entries[i].tag = trimmed
-            }
+        // Batch mutate via local copy to avoid one publisher event per entry
+        var updated = entries
+        for i in updated.indices where updated[i].tag == oldName {
+            updated[i].tag = trimmed
         }
+        entries = updated
         hasUnsavedChanges = true
         showToast("Đã đổi tên tag thành \"\(trimmed)\"", type: .success)
     }
 
     func deleteTag(name: String) {
         tags.removeAll { $0.name == name }
-        for i in entries.indices {
-            if entries[i].tag == name {
-                entries[i].tag = nil
-            }
+        var updated = entries
+        for i in updated.indices where updated[i].tag == name {
+            updated[i].tag = nil
         }
+        entries = updated
         hasUnsavedChanges = true
         showToast("Đã xóa tag \"\(name)\"", type: .success)
     }
@@ -311,11 +312,11 @@ class HostsFileManager: ObservableObject {
         // mixed or allEnabled → turn all off; allDisabled → turn all on
         let newState = state == .allDisabled
 
-        for i in entries.indices {
-            if entries[i].tag == name {
-                entries[i].isEnabled = newState
-            }
+        var updated = entries
+        for i in updated.indices where updated[i].tag == name {
+            updated[i].isEnabled = newState
         }
+        entries = updated
         hasUnsavedChanges = true
     }
 

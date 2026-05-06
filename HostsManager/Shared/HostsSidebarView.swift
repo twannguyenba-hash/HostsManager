@@ -21,15 +21,16 @@ struct SidebarView: View {
         List(selection: $selection) {
             Section("Bộ lọc") {
                 ForEach(SidebarFilter.allCases) { filter in
+                    let count = hostsManager.entryCount(for: filter)
                     Label {
                         HStack {
                             Text(filter.rawValue)
                             Spacer()
-                            Text("\(hostsManager.entryCount(for: filter))")
+                            Text("\(count)")
                                 .foregroundStyle(.secondary)
                                 .font(.caption)
                                 .modifier(NumericTransitionModifier())
-                                .animation(.default, value: hostsManager.entryCount(for: filter))
+                                .animation(.default, value: count)
                         }
                     } icon: {
                         Image(systemName: filter.icon)
@@ -40,16 +41,17 @@ struct SidebarView: View {
 
             Section("Tags") {
                 ForEach(hostsManager.tags) { tag in
+                    let tagCount = hostsManager.tagEntryCount(name: tag.name)
                     HStack {
                         Label {
                             HStack {
                                 Text(tag.name)
                                 Spacer()
-                                Text("\(hostsManager.tagEntryCount(name: tag.name))")
+                                Text("\(tagCount)")
                                     .foregroundStyle(.secondary)
                                     .font(.caption)
                                     .modifier(NumericTransitionModifier())
-                                    .animation(.default, value: hostsManager.tagEntryCount(name: tag.name))
+                                    .animation(.default, value: tagCount)
                             }
                         } icon: {
                             Image(systemName: "tag.fill")
