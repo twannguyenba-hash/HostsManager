@@ -40,12 +40,19 @@ struct ContentView: View {
 
             Divider()
 
-            switch selectedTab {
-            case .hosts:
-                HostsView()
-            case .env:
-                EnvView()
+            // Switch giữa 2 view — chỉ 1 NavigationSplitView render tại 1 thời điểm.
+            // .transaction tắt animation transition → swap tức thì, giảm flicker.
+            // Trade-off: @State trong mỗi view (rawText, viewMode, searchText...) reset khi
+            // đổi tab. Chấp nhận đánh đổi này để tránh double toolbar/double render lag từ ZStack.
+            Group {
+                switch selectedTab {
+                case .hosts:
+                    HostsView()
+                case .env:
+                    EnvView()
+                }
             }
+            .transaction { $0.animation = nil }
         }
         .preferredColorScheme(appearance.colorScheme)
     }

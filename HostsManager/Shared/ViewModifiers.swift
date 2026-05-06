@@ -1,11 +1,30 @@
 import SwiftUI
 
+/// Environment value cho biết tab hiện tại có active không.
+/// Dùng để gate các modifier register toolbar item (như .searchable) — tránh duplicate khi
+/// nhiều view cùng resident trong ZStack.
+private struct IsActiveTabKey: EnvironmentKey {
+    static let defaultValue: Bool = true
+}
+
+extension EnvironmentValues {
+    var isActiveTab: Bool {
+        get { self[IsActiveTabKey.self] }
+        set { self[IsActiveTabKey.self] = newValue }
+    }
+}
+
 struct SearchableWithFocus: ViewModifier {
     @Binding var searchText: String
     @Binding var isPresented: Bool
+    @Environment(\.isActiveTab) private var isActiveTab
 
     func body(content: Content) -> some View {
-        if #available(macOS 14.0, *) {
+        // Chỉ attach .searchable khi tab active — nếu cả 2 view cùng add sẽ bị NSToolbar
+        // assert: "already contains an item with the identifier com.apple.SwiftUI.search".
+        if !isActiveTab {
+            content
+        } else if #available(macOS 14.0, *) {
             content
                 .searchable(
                     text: $searchText,
