@@ -24,7 +24,11 @@ struct HostsManagerApp: App {
                 .environment(envManager)
                 .frame(minWidth: 880, minHeight: 540)
         }
-        .windowStyle(.hiddenTitleBar)
+        // NOTE: do NOT use .windowStyle(.hiddenTitleBar) — that strips .titled from
+        // the styleMask, which removes traffic lights AND prevents .fullSizeContentView
+        // from taking effect (resulting in an empty bar above our custom TitleBar).
+        // Instead, AppDelegate.configureWindows() makes the standard title bar
+        // transparent so our gradient extends to the top with traffic lights overlaid.
         .windowResizability(.contentSize)
         .defaultSize(width: 980, height: 640)
         .commands {
@@ -116,18 +120,18 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         ) { _ in self.configureWindows() }
     }
 
-    /// Extend custom TitleBarView all the way to the top of the window so traffic
-    /// lights overlay our gradient bg instead of leaving a dark gap above.
-    /// Filter to content windows only — MenuBarExtra creates a panel window without
-    /// traffic lights, and applying fullSizeContentView to it can corrupt the layout
-    /// of the main window when the observer re-fires.
+    /// Make the standard title bar transparent so our custom TitleBarView's gradient
+    /// extends to the top of the window with traffic lights overlaid on it.
+    /// Standard title bar = .titled style preserved → traffic lights visible.
+    /// Skips NSPanel (MenuBarExtra) which doesn't need this treatment.
     private func configureWindows() {
         for window in NSApp.windows {
-            // standardWindowButton(.closeButton) is non-nil only on real content windows.
-            guard window.standardWindowButton(.closeButton) != nil else { continue }
+            if window is NSPanel { continue }
+            guard window.styleMask.contains(.titled) else { continue }
+
             window.titlebarAppearsTransparent = true
-            window.styleMask.insert(.fullSizeContentView)
             window.titleVisibility = .hidden
+            window.styleMask.insert(.fullSizeContentView)
             window.isMovableByWindowBackground = true
         }
     }
