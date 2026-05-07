@@ -35,10 +35,6 @@ struct SidebarView: View {
 
             VStack(alignment: .leading, spacing: DSSpacing.p4) {
                 filterSection
-                toolsSection
-                if hostsManager.hasUnsavedChanges {
-                    unsavedChangesBanner
-                }
             }
             .padding(.horizontal, DSSpacing.p2)
             .padding(.top, DSSpacing.p2)
@@ -216,33 +212,6 @@ struct SidebarView: View {
         }
     }
 
-    // MARK: - Tools section (mockup: Test connectivity, Lịch sử)
-
-    private var toolsSection: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            sectionHeader("Tools")
-            toolRow(icon: "flask", title: "Test connectivity") {}
-            toolRow(icon: "clock.arrow.circlepath", title: "Lịch sử") {}
-        }
-    }
-
-    private func toolRow(icon: String, title: String, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            HStack(spacing: 8) {
-                Image(systemName: icon)
-                    .font(.system(size: 11))
-                    .foregroundStyle(Color.dsTextSecondary)
-                    .frame(width: 14)
-                Text(title)
-                    .font(.system(size: 11.5))
-                    .foregroundStyle(Color.dsTextSecondary)
-                Spacer()
-            }
-            .dsSidebarItem(isSelected: false)
-        }
-        .buttonStyle(.plain)
-    }
-
     // MARK: - Filter section
 
     private var filterSection: some View {
@@ -292,23 +261,6 @@ struct SidebarView: View {
             .foregroundStyle(Color.dsTextTertiary)
             .padding(.horizontal, 6)
             .padding(.bottom, 4)
-    }
-
-    private var unsavedChangesBanner: some View {
-        HStack(spacing: 6) {
-            Image(systemName: "exclamationmark.triangle.fill")
-                .foregroundStyle(Color.dsProfileAmber)
-                .font(.system(size: 10))
-            Text("Có thay đổi chưa lưu")
-                .font(.system(size: 10.5))
-                .foregroundStyle(Color.dsTextSecondary)
-        }
-        .padding(.horizontal, DSSpacing.p2)
-        .padding(.vertical, 6)
-        .background(
-            RoundedRectangle(cornerRadius: DSRadius.sm)
-                .fill(Color.dsProfileAmber.opacity(0.08))
-        )
     }
 
     // MARK: - Sheets
