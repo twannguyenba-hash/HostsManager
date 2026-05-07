@@ -7,6 +7,8 @@ struct BreadcrumbView: View {
     let activeProfile: Profile?
     let pendingChanges: Int
     var sudoOK: Bool = false
+    var externalChangeDetected: Bool = false
+    var onReloadFromDisk: () -> Void = {}
 
     var body: some View {
         HStack(spacing: DSSpacing.p2) {
@@ -109,6 +111,10 @@ struct BreadcrumbView: View {
     @ViewBuilder
     private var rightZone: some View {
         HStack(spacing: DSSpacing.p3) {
+            if activeTab == .hosts && externalChangeDetected {
+                externalChangeBadge
+            }
+
             if activeTab == .hosts {
                 HStack(spacing: 4) {
                     Image(systemName: sudoOK ? "checkmark.shield.fill" : "shield")
@@ -131,6 +137,36 @@ struct BreadcrumbView: View {
                 }
             }
         }
+    }
+
+    /// Amber warning chip + Reload button, shown when an external tool modified
+    /// `/etc/hosts` while the app was running. Click to reload from disk.
+    private var externalChangeBadge: some View {
+        Button(action: onReloadFromDisk) {
+            HStack(spacing: 4) {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .font(.system(size: 10))
+                    .foregroundStyle(Color.dsProfileAmber)
+                Text("File thay đổi từ bên ngoài")
+                    .font(.system(size: 10.5))
+                    .foregroundStyle(Color.dsTextPrimary)
+                Text("· Tải lại")
+                    .font(.system(size: 10.5, weight: .medium))
+                    .foregroundStyle(Color(hex: "#78b4ff"))
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 2)
+            .background(
+                RoundedRectangle(cornerRadius: DSRadius.sm)
+                    .fill(Color.dsProfileAmber.opacity(0.12))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: DSRadius.sm)
+                    .strokeBorder(Color.dsProfileAmber.opacity(0.3), lineWidth: 0.5)
+            )
+        }
+        .buttonStyle(.plain)
+        .help("File /etc/hosts đã bị tool khác sửa. Click để tải lại từ disk.")
     }
 }
 

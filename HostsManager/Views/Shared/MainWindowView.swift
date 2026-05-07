@@ -27,7 +27,9 @@ struct MainWindowView: View {
                 activeTab: selectedTab,
                 activeProfile: activeProfile,
                 pendingChanges: pendingChanges,
-                sudoOK: false  // wired in v2.1 with SudoCoordinator
+                sudoOK: false,  // wired in v2.1 with SudoCoordinator
+                externalChangeDetected: hostsManager.externalChangeDetected,
+                onReloadFromDisk: { hostsManager.loadHostsFile() }
             )
 
             content

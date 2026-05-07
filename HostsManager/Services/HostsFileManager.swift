@@ -85,6 +85,15 @@ final class HostsFileManager {
     private let hostsPath = "/etc/hosts"
     private let profileStore: ProfileStoring
 
+    // MARK: - External change detection
+
+    /// `true` when an external tool (Docker, terminal sudo write, etc.) modified
+    /// `/etc/hosts` while we were running. UI shows amber warning + Reload action.
+    /// Cleared after `loadHostsFile()` or user dismissal.
+    var externalChangeDetected = false
+
+    private let fileWatcher = HostsFileWatcher()
+
     // MARK: - Undo / Redo
 
     /// Snapshot stacks for undo/redo. Each snapshot captures `entries` only — tags and
@@ -134,7 +143,21 @@ final class HostsFileManager {
         self.profiles = profileStore.load()
         if autoLoad {
             loadHostsFile()
+            startWatchingHostsFile()
         }
+    }
+
+    private func startWatchingHostsFile() {
+        fileWatcher.onChange = { [weak self] event in
+            guard let self else { return }
+            // The watcher already runs callbacks on main via DispatchQueue.main.async,
+            // so MainActor isolation is honored here. Set the flag — UI reacts.
+            switch event {
+            case .modified, .deleted:
+                self.externalChangeDetected = true
+            }
+        }
+        fileWatcher.start()
     }
 
     func loadHostsFile() {
@@ -143,6 +166,7 @@ final class HostsFileManager {
             originalContent = content
             parseHostsContent(content)
             hasUnsavedChanges = false
+            externalChangeDetected = false
             clearUndoStacks()
         } catch {
             showToast("Không thể đọc file /etc/hosts: \(error.localizedDescription)", type: .error)
@@ -610,6 +634,8 @@ final class HostsFileManager {
 
         let command = "cp \(tempPath) /etc/hosts && rm -f \(tempPath) && dscacheutil -flushcache && killall -HUP mDNSResponder 2>/dev/null; true"
 
+        // Suspend watcher so our own write doesn't show as "external change".
+        fileWatcher.suspend()
         runPrivilegedCommand(command) { [weak self] success, error in
             guard let self = self else { return }
             self.isApplying = false
@@ -617,10 +643,15 @@ final class HostsFileManager {
             if success {
                 self.originalContent = content
                 self.hasUnsavedChanges = false
+                self.externalChangeDetected = false
                 self.redoStack.removeAll()  // post-apply redo would re-create stale state
                 self.showToast("Đã áp dụng thành công!", type: .success)
             } else if let error = error {
                 self.showToast("Lỗi: \(error)", type: .error)
+            }
+            // Resume after a short delay — disk events trail the cp by a few ms.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
+                self.fileWatcher.resume()
             }
             // error == nil means user cancelled — do nothing
         }
@@ -649,6 +680,7 @@ final class HostsFileManager {
 
         let command = "cp \(tempPath) /etc/hosts && rm -f \(tempPath) && dscacheutil -flushcache && killall -HUP mDNSResponder 2>/dev/null; true"
 
+        fileWatcher.suspend()
         runPrivilegedCommand(command) { [weak self] success, error in
             guard let self = self else { return }
             self.isApplying = false
@@ -657,9 +689,13 @@ final class HostsFileManager {
                 self.originalContent = content
                 self.parseHostsContent(content)
                 self.hasUnsavedChanges = false
+                self.externalChangeDetected = false
                 self.showToast("Đã áp dụng thành công!", type: .success)
             } else if let error = error {
                 self.showToast("Lỗi: \(error)", type: .error)
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
+                self.fileWatcher.resume()
             }
         }
     }
