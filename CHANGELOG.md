@@ -1,5 +1,20 @@
 # Changelog
 
+## v2.1.0 — In progress (refactor/v2-redesign)
+
+### Added
+
+- **Undo/Redo**: snapshot stacks (cap 50) wired to ⌘Z / ⌘⇧Z and StatusBar buttons. Coalesces no-op duplicates; redo cleared after Apply. Covers toggle/add/update/delete/duplicate/import/tag operations.
+- **External file change detection**: `HostsFileWatcher` (DispatchSource on `/etc/hosts`, 400ms debounce) flags `externalChangeDetected`. Breadcrumb shows amber warning + click-to-reload when Docker/terminal/other tool modifies the file. Self-writes suppressed via `suspend()`/`resume()` around `applyChanges`.
+- **MenuBarExtra quick switch**: 260px dropdown with active profile, switchable list, ⌘1-9 hints, Open/Quit actions. Title shows active profile color dot + name. Toggleable via Settings → General → "Hiện ở menu bar".
+- **Hosts syntax highlighting in raw editor**: zero-dep `HostsSyntaxHighlighter` applies NSAttributedString colors per token (tag markers purple, comments gray italic, localhost IPs red, remote IPs green, hostnames primary, disabled entries dimmed). Re-runs debounced 80ms after each keystroke.
+- **Tests**: +16 unit tests (8 undo/redo, 3 file watcher, 5 syntax highlighter). Total 48 unit + 6 UI (1 skipped).
+
+### Decisions
+
+- **Skipped Runestone/CodeEditor packages** for raw editor — NSAttributedString tokenizer is sufficient for hosts grammar and keeps zero-deps policy intact.
+- **Embedded Undo/Redo in `HostsFileManager`** instead of separate `UndoCoordinator` service — KISS, snapshot stacks are state of the entity being undone.
+
 ## v2.0.0 — 2026-05-07
 
 ### Breaking changes
