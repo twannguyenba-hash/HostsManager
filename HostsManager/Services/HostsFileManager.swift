@@ -73,11 +73,24 @@ final class HostsFileManager {
     var isSearchFocused = false
     var toast: ToastMessage?
 
+    /// Profile metadata (color, shortcut) layered on top of tag-name markers in `/etc/hosts`.
+    /// Synced with `tags` after every parse: new tags → unstyled profile (default color),
+    /// orphan profiles preserved so user metadata survives temporary tag removal.
+    var profiles: [Profile] = []
+
+    /// `nil` means "show all" (legacy v1 behaviour). Non-nil = filter UI to this profile's tag.
+    var activeProfileID: UUID?
+
     private var originalContent = ""
     private let hostsPath = "/etc/hosts"
+    private let profileStore: ProfileStoring
 
-    init() {
-        loadHostsFile()
+    init(profileStore: ProfileStoring = ProfileStore(), autoLoad: Bool = true) {
+        self.profileStore = profileStore
+        self.profiles = profileStore.load()
+        if autoLoad {
+            loadHostsFile()
+        }
     }
 
     func loadHostsFile() {
@@ -180,6 +193,81 @@ final class HostsFileManager {
         entries = newEntries
         commentLines = newCommentLines
         tags = discoveredTagNames.map { HostTag(name: $0) }
+        syncProfilesWithTags()
+    }
+
+    // MARK: - Profile sync
+
+    /// Reconcile `profiles` with `tags`:
+    /// - For each tag without a matching profile: create one with default (purple) color.
+    /// - Orphan profiles (no current tag) are preserved — metadata survives tag removal.
+    /// Persists via `profileStore` after change.
+    private func syncProfilesWithTags() {
+        var changed = false
+        for tag in tags where !profiles.contains(where: { $0.name == tag.name }) {
+            let nextShortcut = (profiles.compactMap(\.shortcutNumber).max() ?? 0) + 1
+            profiles.append(Profile(
+                name: tag.name,
+                color: .purple,
+                shortcutNumber: nextShortcut <= 9 ? nextShortcut : nil
+            ))
+            changed = true
+        }
+        if changed {
+            profileStore.save(profiles)
+        }
+    }
+
+    // MARK: - Profile CRUD
+
+    /// Switch active profile (or pass `nil` to show all). Does not modify hosts file.
+    func switchProfile(to id: UUID?) {
+        activeProfileID = id
+    }
+
+    /// Add a new profile with auto-assigned shortcut. Does not create a tag in hosts file
+    /// (that happens when entries are tagged).
+    func addProfile(name: String, color: ProfileColor) -> Profile? {
+        let trimmed = name.trimmingCharacters(in: .whitespaces)
+        let candidate = Profile(name: trimmed, color: color)
+        guard candidate.isNameValid,
+              !profiles.contains(where: { $0.name.lowercased() == trimmed.lowercased() })
+        else { return nil }
+        var profile = candidate
+        profile.shortcutNumber = (profiles.compactMap(\.shortcutNumber).max() ?? 0) + 1
+        profiles.append(profile)
+        profileStore.save(profiles)
+        return profile
+    }
+
+    /// Remove profile metadata. Caller is responsible for untagging entries first if desired.
+    func removeProfile(id: UUID) {
+        profiles.removeAll { $0.id == id }
+        if activeProfileID == id { activeProfileID = nil }
+        profileStore.save(profiles)
+    }
+
+    /// Rename a profile. Updates both `Profile.name` and any `HostEntry.tag` references,
+    /// then persists profile metadata.
+    @discardableResult
+    func renameProfile(id: UUID, to newName: String) -> Bool {
+        let trimmed = newName.trimmingCharacters(in: .whitespaces)
+        guard let idx = profiles.firstIndex(where: { $0.id == id }) else { return false }
+        let candidate = Profile(name: trimmed, color: profiles[idx].color)
+        guard candidate.isNameValid,
+              !profiles.contains(where: { $0.id != id && $0.name.lowercased() == trimmed.lowercased() })
+        else { return false }
+        let oldName = profiles[idx].name
+        profiles[idx].name = trimmed
+        for i in entries.indices where entries[i].tag == oldName {
+            entries[i].tag = trimmed
+        }
+        if let tagIdx = tags.firstIndex(where: { $0.name == oldName }) {
+            tags[tagIdx].name = trimmed
+        }
+        profileStore.save(profiles)
+        hasUnsavedChanges = true
+        return true
     }
 
     func generateHostsContent() -> String {
