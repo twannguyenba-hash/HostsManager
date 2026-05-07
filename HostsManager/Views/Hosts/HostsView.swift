@@ -194,6 +194,13 @@ struct HostsView: View {
                 hostsManager.isSearchFocused = false
             }
         }
+        .onChange(of: hostsManager.pendingSearchQuery) { query in
+            if let query, !query.isEmpty {
+                searchText = query
+                isSearchFieldFocused = true
+                hostsManager.pendingSearchQuery = nil
+            }
+        }
     }
 
     /// Subtitle with colored dots inline: ●6 enabled · ●1 disabled (matches mockup).

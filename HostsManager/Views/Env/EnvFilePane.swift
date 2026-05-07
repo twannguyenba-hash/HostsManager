@@ -45,6 +45,13 @@ struct EnvFilePane: View {
         .task(id: repo.id) {
             refreshFiles()
         }
+        .onChange(of: envManager.pendingSearchQuery) { query in
+            if let query, !query.isEmpty {
+                searchText = query
+                isSearchFocused = true
+                envManager.pendingSearchQuery = nil
+            }
+        }
         .sheet(isPresented: $showAddSheet) {
             if let file = currentFile {
                 EnvKeyFormSheet(mode: .add) { key, value, comment in

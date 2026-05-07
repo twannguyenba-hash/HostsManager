@@ -7,6 +7,7 @@ struct MainWindowView: View {
     @Environment(HostsFileManager.self) private var hostsManager
     @Environment(EnvFileManager.self) private var envManager
     @State private var selectedTab: AppTab = .hosts
+    @State private var showCommandPalette: Bool = false
     @AppStorage("appearanceMode") private var appearanceRaw: String = AppearanceMode.system.rawValue
 
     private var appearance: AppearanceMode {
@@ -51,6 +52,30 @@ struct MainWindowView: View {
         .preferredColorScheme(appearance.colorScheme)
         .environment(\.isActiveTab, true)
         .background(WindowChromeConfigurator())
+        .background(commandPaletteShortcut)
+        .overlay(alignment: .top) {
+            if showCommandPalette {
+                CommandPaletteView(
+                    isPresented: $showCommandPalette,
+                    switchTab: { selectedTab = $0 }
+                )
+                .zIndex(100)
+            }
+        }
+        .animation(reduceMotion ? nil : .easeOut(duration: 0.18), value: showCommandPalette)
+    }
+
+    /// Invisible button hosting the ⌘K shortcut. Placed in `.background` so
+    /// it captures the keystroke without affecting layout.
+    private var commandPaletteShortcut: some View {
+        Button {
+            showCommandPalette.toggle()
+        } label: { EmptyView() }
+        .buttonStyle(.plain)
+        .frame(width: 0, height: 0)
+        .opacity(0)
+        .keyboardShortcut("k", modifiers: .command)
+        .accessibilityHidden(true)
     }
 
     // MARK: - Content routing

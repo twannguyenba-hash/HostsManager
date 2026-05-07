@@ -71,6 +71,9 @@ final class HostsFileManager {
     var hasUnsavedChanges = false
     var isApplying = false
     var isSearchFocused = false
+    /// Pending query pushed from the ⌘K palette. HostsView observes, applies to its
+    /// own search field, then clears. Decouples palette from view-local @State.
+    var pendingSearchQuery: String?
     var toast: ToastMessage?
 
     /// Profile metadata (color, shortcut) layered on top of tag-name markers in `/etc/hosts`.

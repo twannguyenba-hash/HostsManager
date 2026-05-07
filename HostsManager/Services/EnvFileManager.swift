@@ -8,6 +8,8 @@ final class EnvFileManager {
     var selectedRepoId: UUID?
     var selectedFilePath: String?
     var loadedFiles: [UUID: [EnvFile]] = [:]
+    /// Pending query pushed from the ⌘K palette. EnvFilePane observes and applies.
+    var pendingSearchQuery: String?
     var toast: ToastMessage?
 
     private let storageURL: URL
