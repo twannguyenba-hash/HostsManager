@@ -101,6 +101,8 @@ struct TitleBarView: View {
             )
         }
         .buttonStyle(.plain)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(tab.rawValue)
         .accessibilityIdentifier("tab-\(tab.rawValue.lowercased())")
     }
 
