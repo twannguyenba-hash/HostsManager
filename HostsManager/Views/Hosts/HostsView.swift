@@ -22,6 +22,7 @@ struct HostsView: View {
         @Bindable var hostsManager = hostsManager
         return NavigationSplitView {
             SidebarView(selection: $sidebarSelection, hostsManager: hostsManager)
+                .toolbar(removing: .sidebarToggle)
         } detail: {
             VStack(spacing: 0) {
                 detailHeaderBar
@@ -44,7 +45,6 @@ struct HostsView: View {
                 }
             }
         }
-        .toolbar(.hidden, for: .windowToolbar)
         .sheet(isPresented: $showAddSheet) {
             EntryFormSheet(hostsManager: hostsManager, mode: .add)
         }

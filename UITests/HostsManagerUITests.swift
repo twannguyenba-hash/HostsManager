@@ -112,6 +112,14 @@ final class HostsManagerUITests: XCTestCase {
         // Our custom title bar must still be visible
         XCTAssertTrue(app.staticTexts["Hosts Manager"].exists,
                       "Custom TitleBarView text must remain")
+
+        // NSV's auto-installed "Hide Sidebar" toggle (lives inside the sidebar
+        // column, not the window toolbar) must be hidden via .toolbar(removing: .sidebarToggle).
+        let toggleSidebar = app.buttons.matching(NSPredicate(
+            format: "label CONTAINS[c] 'sidebar'"
+        ))
+        XCTAssertEqual(toggleSidebar.count, 0,
+                       "NavigationSplitView sidebar-toggle must be hidden")
     }
 
     func test_searchField_filtersHostList() throws {

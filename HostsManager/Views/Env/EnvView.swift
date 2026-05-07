@@ -7,6 +7,7 @@ struct EnvView: View {
         NavigationSplitView {
             EnvSidebarView()
                 .navigationSplitViewColumnWidth(min: 200, ideal: 240)
+                .toolbar(removing: .sidebarToggle)
         } detail: {
             ZStack {
                 detailContent
@@ -22,10 +23,6 @@ struct EnvView: View {
                 }
             }
         }
-        // Hide NavigationSplitView's auto-installed window toolbar (sidebar
-        // toggle button). Our custom TitleBarView owns that real estate.
-        // Same pattern as HostsView.
-        .toolbar(removing: .sidebarToggle)
     }
 
     @ViewBuilder
