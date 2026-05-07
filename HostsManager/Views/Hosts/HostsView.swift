@@ -20,10 +20,14 @@ struct HostsView: View {
 
     var body: some View {
         @Bindable var hostsManager = hostsManager
-        return NavigationSplitView {
+        // HStack-based layout instead of NavigationSplitView — macOS 26 NSV
+        // imposes a floating Liquid-Glass sidebar panel with insets we can't
+        // suppress. We need flush, edge-to-edge sidebar/detail like a desktop
+        // IDE, so manually compose with HStack + Divider.
+        return HStack(spacing: 0) {
             SidebarView(selection: $sidebarSelection, hostsManager: hostsManager)
-                .toolbar(removing: .sidebarToggle)
-        } detail: {
+                .frame(width: 220)
+            Divider()
             VStack(spacing: 0) {
                 detailHeaderBar
                 ZStack {
@@ -44,8 +48,8 @@ struct HostsView: View {
                     }
                 }
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .navigationSplitViewStyle(.balanced)
         .sheet(isPresented: $showAddSheet) {
             EntryFormSheet(hostsManager: hostsManager, mode: .add)
         }

@@ -4,11 +4,11 @@ struct EnvView: View {
     @Environment(EnvFileManager.self) private var envManager
 
     var body: some View {
-        NavigationSplitView {
+        // HStack-based layout (see HostsView for rationale).
+        HStack(spacing: 0) {
             EnvSidebarView()
-                .navigationSplitViewColumnWidth(min: 200, ideal: 240)
-                .toolbar(removing: .sidebarToggle)
-        } detail: {
+                .frame(width: 220)
+            Divider()
             ZStack {
                 detailContent
 
@@ -22,8 +22,8 @@ struct EnvView: View {
                     .animation(.spring(response: 0.4), value: envManager.toast)
                 }
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .navigationSplitViewStyle(.balanced)
     }
 
     @ViewBuilder
