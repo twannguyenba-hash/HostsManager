@@ -19,9 +19,19 @@ struct SidebarView: View {
     @State private var deleteTarget: Profile?
 
     var body: some View {
-        ScrollView {
+        VStack(alignment: .leading, spacing: 0) {
+            // Profiles list scrolls; everything below is pinned so the user always
+            // sees the filter counts + tools without needing to scroll past profiles.
+            ScrollView {
+                VStack(alignment: .leading, spacing: DSSpacing.p4) {
+                    profilesSection
+                }
+                .padding(.horizontal, DSSpacing.p2)
+                .padding(.top, DSSpacing.p3)
+                .padding(.bottom, DSSpacing.p2)
+            }
+
             VStack(alignment: .leading, spacing: DSSpacing.p4) {
-                profilesSection
                 filterSection
                 toolsSection
                 if hostsManager.hasUnsavedChanges {
@@ -29,7 +39,12 @@ struct SidebarView: View {
                 }
             }
             .padding(.horizontal, DSSpacing.p2)
-            .padding(.vertical, DSSpacing.p3)
+            .padding(.top, DSSpacing.p2)
+            .padding(.bottom, DSSpacing.p3)
+            .background(Color.dsBackgroundSidebar)
+            .overlay(alignment: .top) {
+                Rectangle().fill(Color.dsBorderTertiary).frame(height: 0.5)
+            }
         }
         .background(Color.dsBackgroundSidebar)
         .navigationSplitViewColumnWidth(min: 180, ideal: 200, max: 240)

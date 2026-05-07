@@ -45,9 +45,18 @@ final class HostsManagerUITests: XCTestCase {
         // Sleep brief — tab content swap animates 180ms
         Thread.sleep(forTimeInterval: 0.4)
 
+        // Header must remain visible after switching to Env (regression: title bar
+        // could disappear if MainWindowView misuses .ignoresSafeArea / window safe areas).
+        XCTAssertTrue(app.staticTexts["Hosts Manager"].exists,
+                      "TitleBar 'Hosts Manager' must persist after switching to Env tab")
+        XCTAssertTrue(envTab.exists, "Env tab button must remain in title bar")
+        XCTAssertTrue(hostsTab.exists, "Hosts tab button must remain in title bar")
+
         hostsTab.click()
         Thread.sleep(forTimeInterval: 0.4)
         XCTAssertTrue(app.windows.firstMatch.exists, "Window should still be present after tab switches")
+        XCTAssertTrue(app.staticTexts["Hosts Manager"].exists,
+                      "TitleBar must still be visible after switching back to Hosts")
     }
 
     func test_searchField_filtersHostList() throws {
