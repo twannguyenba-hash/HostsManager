@@ -22,14 +22,15 @@ struct ProfileIntegrationTests {
         return (m, store)
     }
 
-    @Test("New tags from /etc/hosts auto-create profiles with default color")
+    @Test("New tags from /etc/hosts auto-create profiles with heuristic colors")
     func newTagsCreateProfiles() {
         let (m, store) = makeManager()
         let names = m.profiles.map(\.name).sorted()
         #expect(names == ["Production", "Release"])
-        #expect(m.profiles.allSatisfy { $0.color == .purple })
+        // Heuristic: "release" → purple, "prod" → green
+        #expect(m.profiles.first(where: { $0.name == "Release" })?.color == .purple)
+        #expect(m.profiles.first(where: { $0.name == "Production" })?.color == .green)
         #expect(m.profiles.allSatisfy { $0.shortcutNumber != nil })
-        // Persisted to store
         #expect(store.stored.count == 2)
     }
 

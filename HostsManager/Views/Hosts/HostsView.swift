@@ -275,117 +275,45 @@ struct HostsView: View {
     }
 
     private func entriesTable(_ filtered: [HostEntry]) -> some View {
-        Table(filtered) {
-            TableColumn("") { entry in
-                Toggle("", isOn: Binding(
-                    get: { entry.isEnabled },
-                    set: { _ in hostsManager.toggleEntry(id: entry.id) }
-                ))
-                .toggleStyle(.switch)
-                .controlSize(.small)
-                .frame(maxWidth: .infinity, alignment: .center)
-                .contentShape(Rectangle())
-                .contextMenu { entryContextMenu(entry: entry) }
-            }
-            .width(50)
-
-            TableColumn("IP") { entry in
-                Text(entry.ip)
-                    .font(.system(.body, design: .monospaced).weight(.regular))
-                    .foregroundStyle(ipColor(for: entry))
-                    .opacity(entry.isEnabled ? 1.0 : 0.45)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .contentShape(Rectangle())
-                    .contextMenu { entryContextMenu(entry: entry) }
-            }
-            .width(min: 100, ideal: 140)
-
-            TableColumn("Hostname") { entry in
-                Text(entry.hostname)
-                    .font(.system(.body, design: .monospaced).weight(entry.isEnabled ? .medium : .regular))
-                    .foregroundStyle(.primary)
-                    .opacity(entry.isEnabled ? 1.0 : 0.5)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .contentShape(Rectangle())
-                    .contextMenu { entryContextMenu(entry: entry) }
-            }
-            .width(min: 150, ideal: 250)
-
-            TableColumn("Comment") { entry in
-                Text(entry.comment)
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-                    .opacity(entry.isEnabled ? 1.0 : 0.5)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .contentShape(Rectangle())
-                    .contextMenu { entryContextMenu(entry: entry) }
-            }
-            .width(min: 80, ideal: 150)
-
-            TableColumn("Tag") { entry in
-                Group {
-                    if let tag = entry.tag {
-                        TagPill(name: tag)
-                    }
+        ScrollView {
+            LazyVStack(spacing: 0) {
+                hostsListHeader
+                ForEach(Array(filtered.enumerated()), id: \.element.id) { index, entry in
+                    HostRowView(
+                        entry: entry,
+                        hostsManager: hostsManager,
+                        isAlternate: index.isMultiple(of: 2),
+                        onEdit: { editingEntry = entry },
+                        onDelete: {
+                            deleteTarget = entry
+                            showDeleteConfirm = true
+                        }
+                    )
                 }
+            }
+        }
+        .background(Color.dsBackground)
+    }
+
+    /// Column titles row above the host list (mirrors mockup-reference.md → "List rows (Hosts)").
+    private var hostsListHeader: some View {
+        HStack(spacing: DSSpacing.p2) {
+            Spacer().frame(width: 30)
+            Text("IP")
+                .frame(width: 116, alignment: .leading)
+            Text("Hostname")
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .contentShape(Rectangle())
-                .contextMenu { entryContextMenu(entry: entry) }
-            }
-            .width(min: 60, ideal: 100)
-
-            TableColumn("") { entry in
-                EntryActionButtons(
-                    onEdit: { editingEntry = entry },
-                    onDelete: {
-                        deleteTarget = entry
-                        showDeleteConfirm = true
-                    }
-                )
-                .contextMenu { entryContextMenu(entry: entry) }
-            }
-            .width(60)
+            Text("Source")
+                .frame(width: 80, alignment: .leading)
+            Spacer().frame(width: 24)
         }
-        .tableStyle(.bordered(alternatesRowBackgrounds: true))
-    }
-
-    /// Blocking entries (0.0.0.0 hoặc 127.0.0.1 → non-localhost) hiện đỏ; localhost/loopback xanh nhạt; còn lại xanh primary.
-    private func ipColor(for entry: HostEntry) -> Color {
-        if entry.ip == "0.0.0.0" { return .red }
-        if entry.ip == "127.0.0.1" && entry.hostname != "localhost" { return .red }
-        if entry.ip == "127.0.0.1" || entry.ip == "::1" { return .secondary }
-        return .green
-    }
-
-    @ViewBuilder
-    private func entryContextMenu(entry: HostEntry) -> some View {
-        Button {
-            editingEntry = entry
-        } label: {
-            Label("Sửa", systemImage: "pencil")
-        }
-
-        Button {
-            hostsManager.toggleEntry(id: entry.id)
-        } label: {
-            Label(entry.isEnabled ? "Tắt" : "Bật", systemImage: entry.isEnabled ? "pause.circle" : "play.circle")
-        }
-
-        Button {
-            if let copy = hostsManager.duplicateEntry(id: entry.id) {
-                editingEntry = copy
-            }
-        } label: {
-            Label("Nhân đôi", systemImage: "plus.square.on.square")
-        }
-
-        Divider()
-
-        Button(role: .destructive) {
-            deleteTarget = entry
-            showDeleteConfirm = true
-        } label: {
-            Label("Xóa", systemImage: "trash")
+        .font(.dsLabel)
+        .foregroundStyle(Color.dsTextTertiary)
+        .padding(.horizontal, 10)
+        .padding(.vertical, DSSpacing.p2)
+        .overlay(alignment: .bottom) {
+            Rectangle().fill(Color.dsBorderSecondary).frame(height: 0.5)
         }
     }
+
 }
