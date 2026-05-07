@@ -24,11 +24,10 @@ struct HostsManagerApp: App {
                 .environment(envManager)
                 .frame(minWidth: 880, minHeight: 540)
         }
-        // NOTE: do NOT use .windowStyle(.hiddenTitleBar) — that strips .titled from
-        // the styleMask, which removes traffic lights AND prevents .fullSizeContentView
-        // from taking effect (resulting in an empty bar above our custom TitleBar).
-        // Instead, AppDelegate.configureWindows() makes the standard title bar
-        // transparent so our gradient extends to the top with traffic lights overlaid.
+        // NOTE: do NOT set .windowStyle(.hiddenTitleBar) here — on macOS SDK 26 it
+        // misbehaves when combined with MenuBarExtra (drops traffic lights and leaves
+        // an empty gap above content). AppDelegate.configureWindows() does the work
+        // manually with explicit styleMask + titlebarAppearsTransparent.
         .windowResizability(.contentSize)
         .defaultSize(width: 980, height: 640)
         .commands {
@@ -62,15 +61,13 @@ struct HostsManagerApp: App {
                 .environment(envManager)
         }
 
-        // Menu bar quick switch — togglable via Settings.
-        // Title shows active profile color dot + name (or generic icon if none active).
         MenuBarExtra(isInserted: $showMenuBarExtra) {
             MenuBarContentView()
                 .environment(hostsManager)
         } label: {
             menuBarLabel
         }
-        .menuBarExtraStyle(.window)
+        .menuBarExtraStyle(.menu)
     }
 
     /// Status bar label — colored dot + active profile name when set, otherwise a
@@ -108,32 +105,6 @@ struct HostsManagerApp: App {
 class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
         return true
-    }
-
-    func applicationDidFinishLaunching(_ notification: Notification) {
-        // SwiftUI creates the window after didFinishLaunching, so defer + observe.
-        configureWindows()
-        NotificationCenter.default.addObserver(
-            forName: NSWindow.didBecomeKeyNotification,
-            object: nil,
-            queue: .main
-        ) { _ in self.configureWindows() }
-    }
-
-    /// Make the standard title bar transparent so our custom TitleBarView's gradient
-    /// extends to the top of the window with traffic lights overlaid on it.
-    /// Standard title bar = .titled style preserved → traffic lights visible.
-    /// Skips NSPanel (MenuBarExtra) which doesn't need this treatment.
-    private func configureWindows() {
-        for window in NSApp.windows {
-            if window is NSPanel { continue }
-            guard window.styleMask.contains(.titled) else { continue }
-
-            window.titlebarAppearsTransparent = true
-            window.titleVisibility = .hidden
-            window.styleMask.insert(.fullSizeContentView)
-            window.isMovableByWindowBackground = true
-        }
     }
 
     func applicationWillTerminate(_ notification: Notification) {

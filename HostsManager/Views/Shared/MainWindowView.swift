@@ -48,9 +48,10 @@ struct MainWindowView: View {
             )
         }
         .background(Color.dsBackground)
+        .ignoresSafeArea(.all)
         .preferredColorScheme(appearance.colorScheme)
         .environment(\.isActiveTab, true)
-        .toolbar(.hidden, for: .windowToolbar)
+        .background(WindowChromeConfigurator())
         .accessibilityIdentifier("main-window")
     }
 
