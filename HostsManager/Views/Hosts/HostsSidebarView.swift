@@ -20,6 +20,12 @@ struct SidebarView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
+            // Pinned at top: add-profile button (always visible regardless of scroll).
+            addProfileButton
+                .padding(.horizontal, DSSpacing.p2)
+                .padding(.top, DSSpacing.p3)
+                .padding(.bottom, DSSpacing.p2)
+
             // Profiles list scrolls; everything below is pinned so the user always
             // sees the filter counts + tools without needing to scroll past profiles.
             ScrollView {
@@ -27,7 +33,6 @@ struct SidebarView: View {
                     profilesSection
                 }
                 .padding(.horizontal, DSSpacing.p2)
-                .padding(.top, DSSpacing.p3)
                 .padding(.bottom, DSSpacing.p2)
             }
 
@@ -46,6 +51,7 @@ struct SidebarView: View {
                 Rectangle().fill(Color.dsBorderTertiary).frame(height: 0.5)
             }
         }
+        .frame(maxHeight: .infinity)
         .background(Color.dsBackgroundSidebar)
         .navigationSplitViewColumnWidth(min: 180, ideal: 200, max: 240)
         .sheet(isPresented: $showCreateProfileSheet) { createProfileSheet }
@@ -89,24 +95,40 @@ struct SidebarView: View {
             ForEach(hostsManager.profiles, id: \.id) { profile in
                 profileRow(profile)
             }
-
-            Button {
-                newProfileName = ""
-                newProfileColor = .purple
-                showCreateProfileSheet = true
-            } label: {
-                HStack(spacing: 6) {
-                    Image(systemName: "plus.circle")
-                        .font(.system(size: 11))
-                    Text("Profile mới")
-                        .font(.system(size: 10.5))
-                }
-                .foregroundStyle(Color.dsTextTertiary)
-                .padding(.horizontal, DSSpacing.p2)
-                .padding(.vertical, 5)
-            }
-            .buttonStyle(.plain)
         }
+    }
+
+    /// Pinned top "Thêm profile" button — same visual pattern as EnvSidebarView's
+    /// addRepoButton so both tabs feel consistent.
+    private var addProfileButton: some View {
+        Button {
+            newProfileName = ""
+            newProfileColor = .purple
+            showCreateProfileSheet = true
+        } label: {
+            HStack(spacing: 6) {
+                Image(systemName: "plus.circle")
+                    .font(.system(size: 12))
+                Text("Thêm profile")
+                    .font(.system(size: 11, weight: .medium))
+            }
+            .foregroundStyle(.white)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 6)
+            .background(
+                LinearGradient(
+                    colors: [Color(hex: "#378ADD"), Color(hex: "#185FA5")],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: DSRadius.md)
+                    .strokeBorder(Color(hex: "#78b4ff").opacity(0.4), lineWidth: 0.5)
+            )
+            .clipShape(RoundedRectangle(cornerRadius: DSRadius.md))
+        }
+        .buttonStyle(.plain)
     }
 
     @ViewBuilder
