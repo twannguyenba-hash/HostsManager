@@ -1,10 +1,29 @@
-# HostsManager
+<p align="center">
+  <img src="design/app-icon-1024.png" width="180" alt="HostsManager icon"/>
+</p>
 
-Ứng dụng native macOS để quản lý file `/etc/hosts` và `.env` files của repo dev với giao diện thiết kế dành riêng cho developer.
+<h1 align="center">HostsManager</h1>
 
-## Tính năng v2.0
+<p align="center">
+  Ứng dụng native macOS để quản lý file <code>/etc/hosts</code> và <code>.env</code> files của repo dev với giao diện thiết kế dành riêng cho developer.
+</p>
 
-### Hosts management
+## Screenshots
+
+<p align="center">
+  <img src="design/screenshots/01-hosts.png" width="720" alt="Hosts management with profile sidebar"/>
+  <br/>
+  <em>Profile-first sidebar · Hosts table với IP color tokens · StatusBar Apply button</em>
+</p>
+
+
+## Tính năng v2.x
+
+### v2.1 (mới nhất)
+- **⌘K Command Palette**: fuzzy search mở qua ⌘K — switch profile, jump tab, tìm trong Hosts/Env
+- **App icon mới**: 3 profile cards cascading (purple/green/amber)
+
+### v2.0 — Hosts management
 - Parse và edit `/etc/hosts` với syntax tag markers `## [tag:Name]`
 - **Profile system**: nhóm hosts theo profile (Release/Production/Master/...) với màu phân biệt
 - Bật/tắt entry với DSToggle 24×13 spring animation
