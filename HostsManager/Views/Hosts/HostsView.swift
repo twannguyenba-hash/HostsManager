@@ -173,6 +173,7 @@ struct HostsView: View {
                 .font(.system(size: 11.5))
                 .frame(width: 200)
                 .focused($isSearchFieldFocused)
+                .accessibilityIdentifier("hosts-search-field")
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 3)

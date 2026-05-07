@@ -101,6 +101,7 @@ struct TitleBarView: View {
             )
         }
         .buttonStyle(.plain)
+        .accessibilityIdentifier("tab-\(tab.rawValue.lowercased())")
     }
 
     private var rightZone: some View {

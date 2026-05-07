@@ -43,13 +43,27 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: com.hostsmanager.app.tests
         BUNDLE_LOADER: "$(TEST_HOST)"
         TEST_HOST: "$(BUILT_PRODUCTS_DIR)/HostsManager.app/Contents/MacOS/HostsManager"
+  HostsManagerUITests:
+    type: bundle.ui-testing
+    platform: macOS
+    sources:
+      - UITests
+    dependencies:
+      - target: HostsManager
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        PRODUCT_BUNDLE_IDENTIFIER: com.hostsmanager.app.uitests
+        TEST_TARGET_NAME: HostsManager
 schemes:
   HostsManager:
     build:
       targets:
         HostsManager: all
         HostsManagerTests: [test]
+        HostsManagerUITests: [test]
     test:
       targets:
         - HostsManagerTests
+        - HostsManagerUITests
       gatherCoverageData: true

@@ -141,6 +141,7 @@ struct SidebarView: View {
         }
         .buttonStyle(.plain)
         .animation(.easeInOut(duration: 0.18), value: isActive)
+        .accessibilityIdentifier("profile-row-\(profile.name)")
         .contextMenu {
             Button {
                 renameTarget = profile
