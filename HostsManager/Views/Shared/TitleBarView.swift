@@ -22,7 +22,13 @@ struct TitleBarView: View {
             rightZone
         }
         .padding(.horizontal, DSSpacing.p3)
-        .frame(height: 44)
+        // Align content vertically with the traffic-light buttons (which sit at
+        // y=9..23 within the 32pt native titlebar — center y=16). Container is 38pt
+        // with `alignment: .top` and 4pt top padding pushes content center to y≈18,
+        // matching button center while leaving slight breathing room below.
+        .frame(maxHeight: 38, alignment: .top)
+        .padding(.top, 4)
+        .frame(height: 38)
         .background(titleBarBackground)
         .overlay(alignment: .bottom) {
             Rectangle()
@@ -100,6 +106,10 @@ struct TitleBarView: View {
             )
         }
         .buttonStyle(.plain)
+        // SwiftUI adds a system focus ring around the button when it gets keyboard
+        // focus after a click — that ring sits on top of and visually obscures the
+        // tab pill. Disable it; selected state is communicated via fill+stroke.
+        .focusEffectDisabled()
         .accessibilityElement(children: .combine)
         .accessibilityLabel(tab.rawValue)
         .accessibilityIdentifier("tab-\(tab.rawValue.lowercased())")
@@ -135,6 +145,7 @@ struct TitleBarView: View {
                 )
             }
             .buttonStyle(.plain)
+            .focusEffectDisabled()
 
             Button(action: onSettings) {
                 Image(systemName: "gearshape")
@@ -143,6 +154,7 @@ struct TitleBarView: View {
                     .padding(4)
             }
             .buttonStyle(.plain)
+            .focusEffectDisabled()
         }
     }
 
