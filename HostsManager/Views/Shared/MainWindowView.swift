@@ -51,7 +51,6 @@ struct MainWindowView: View {
         .preferredColorScheme(appearance.colorScheme)
         .environment(\.isActiveTab, true)
         .toolbar(.hidden, for: .windowToolbar)
-        .ignoresSafeArea(.container, edges: .top)
         .accessibilityIdentifier("main-window")
     }
 
