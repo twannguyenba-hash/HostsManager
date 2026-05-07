@@ -27,10 +27,32 @@ struct HostsManagerApp: App {
                 }
                 .keyboardShortcut("f", modifiers: .command)
             }
+            CommandMenu("Profile") {
+                profileShortcutCommands
+                Divider()
+                Button("Bỏ chọn profile") {
+                    hostsManager.switchProfile(to: nil)
+                }
+                .keyboardShortcut("0", modifiers: .command)
+            }
         }
 
         Settings {
             EmptyView()
+        }
+    }
+
+    /// One menu item per profile (⌘1..⌘9). Hidden in production menu via empty title? — kept visible
+    /// so users can discover the shortcut. macOS folds it into the Profile menu.
+    @ViewBuilder
+    private var profileShortcutCommands: some View {
+        ForEach(hostsManager.profiles, id: \.id) { profile in
+            if let n = profile.shortcutNumber, (1...9).contains(n) {
+                Button("Switch to \(profile.name)") {
+                    hostsManager.switchProfile(to: profile.id)
+                }
+                .keyboardShortcut(KeyEquivalent(Character("\(n)")), modifiers: .command)
+            }
         }
     }
 }

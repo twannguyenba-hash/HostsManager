@@ -394,145 +394,50 @@ struct EnvFilePane: View {
                     action: searchText.isEmpty ? { showAddSheet = true } : nil
                 )
             } else {
-                Table(rows) {
-                    TableColumn("") { entry in
-                        Group {
-                            if !entry.isBlankOrComment {
-                                Toggle("", isOn: Binding(
-                                    get: { entry.isEnabled },
-                                    set: { _ in
-                                        envManager.toggleEntry(
-                                            repoId: repo.id,
-                                            fileId: file.id,
-                                            entryId: entry.id
-                                        )
-                                    }
-                                ))
-                                .toggleStyle(.switch)
-                                .controlSize(.small)
-                                .labelsHidden()
-                            }
+                ScrollView {
+                    LazyVStack(spacing: 0) {
+                        envListHeader
+                        ForEach(Array(rows.enumerated()), id: \.element.id) { index, entry in
+                            EnvRowView(
+                                entry: entry,
+                                onToggle: { _ in
+                                    envManager.toggleEntry(
+                                        repoId: repo.id,
+                                        fileId: file.id,
+                                        entryId: entry.id
+                                    )
+                                },
+                                onEdit: { editingEntry = entry },
+                                onDelete: {
+                                    deleteTarget = entry
+                                    showDeleteConfirm = true
+                                },
+                                isAlternate: index.isMultiple(of: 2)
+                            )
                         }
-                        .frame(maxWidth: .infinity, alignment: .center)
-                        .contentShape(Rectangle())
-                        .contextMenu { entryContextMenu(file: file, entry: entry) }
                     }
-                    .width(50)
-
-                    TableColumn("Key") { entry in
-                        Group {
-                            if entry.isBlankOrComment {
-                                Text(entry.rawLine ?? "")
-                                    .font(.system(.caption, design: .monospaced))
-                                    .foregroundStyle(.secondary)
-                                    .italic()
-                            } else {
-                                Text(entry.key)
-                                    .font(.system(.body, design: .monospaced).weight(entry.isEnabled ? .medium : .regular))
-                                    .foregroundStyle(.primary)
-                                    .opacity(entry.isEnabled ? 1.0 : 0.5)
-                            }
-                        }
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .contentShape(Rectangle())
-                        .contextMenu { entryContextMenu(file: file, entry: entry) }
-                    }
-                    .width(min: 140, ideal: 220)
-
-                    TableColumn("Value") { entry in
-                        Group {
-                            if !entry.isBlankOrComment {
-                                Text(entry.value)
-                                    .font(.system(.body, design: .monospaced))
-                                    .foregroundStyle(.secondary)
-                                    .opacity(entry.isEnabled ? 1.0 : 0.5)
-                                    .lineLimit(1)
-                                    .truncationMode(.tail)
-                                    .help(entry.value)
-                            }
-                        }
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .contentShape(Rectangle())
-                        .contextMenu { entryContextMenu(file: file, entry: entry) }
-                    }
-                    .width(min: 180, ideal: 400)
-
-                    TableColumn("Comment") { entry in
-                        Group {
-                            if !entry.isBlankOrComment {
-                                Text(entry.comment)
-                                    .font(.callout)
-                                    .foregroundStyle(.secondary)
-                                    .lineLimit(1)
-                            }
-                        }
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .contentShape(Rectangle())
-                        .contextMenu { entryContextMenu(file: file, entry: entry) }
-                    }
-                    .width(min: 80, ideal: 180)
-
-                    TableColumn("") { entry in
-                        Group {
-                            if !entry.isBlankOrComment {
-                                EntryActionButtons(
-                                    onEdit: { editingEntry = entry },
-                                    onDelete: {
-                                        deleteTarget = entry
-                                        showDeleteConfirm = true
-                                    }
-                                )
-                                .contextMenu { entryContextMenu(file: file, entry: entry) }
-                            }
-                        }
-                        .frame(maxWidth: .infinity, alignment: .center)
-                        .contentShape(Rectangle())
-                    }
-                    .width(60)
                 }
-                .tableStyle(.bordered(alternatesRowBackgrounds: true))
+                .background(Color.dsBackground)
             }
         }
     }
 
-    @ViewBuilder
-    private func entryContextMenu(file: EnvFile, entry: EnvEntry) -> some View {
-        if !entry.isBlankOrComment {
-            Button {
-                editingEntry = entry
-            } label: {
-                Label("Sửa", systemImage: "pencil")
-            }
-
-            Button {
-                envManager.toggleEntry(repoId: repo.id, fileId: file.id, entryId: entry.id)
-            } label: {
-                Label(
-                    entry.isEnabled ? "Tắt" : "Bật",
-                    systemImage: entry.isEnabled ? "pause.circle" : "play.circle"
-                )
-            }
-
-            Button {
-                if let copy = envManager.duplicateEntry(
-                    repoId: repo.id,
-                    fileId: file.id,
-                    entryId: entry.id
-                ) {
-                    editingEntry = copy
-                }
-            } label: {
-                Label("Nhân đôi", systemImage: "plus.square.on.square")
-            }
-
-            Divider()
-
-            Button(role: .destructive) {
-                deleteTarget = entry
-                showDeleteConfirm = true
-            } label: {
-                Label("Xoá", systemImage: "trash")
-            }
+    /// Column header above env list. Widths from `EnvRowLayout`.
+    private var envListHeader: some View {
+        HStack(spacing: DSSpacing.p2) {
+            Spacer().frame(width: EnvRowLayout.toggle)
+            Text("KEY")
+                .frame(width: EnvRowLayout.key, alignment: .leading)
+            Text("VALUE")
+                .frame(maxWidth: .infinity, alignment: .leading)
+            Spacer().frame(width: EnvRowLayout.menu)
+        }
+        .font(.dsLabel)
+        .foregroundStyle(Color.dsTextTertiary)
+        .padding(.horizontal, 10)
+        .padding(.vertical, DSSpacing.p2)
+        .overlay(alignment: .bottom) {
+            Rectangle().fill(Color.dsBorderSecondary).frame(height: 0.5)
         }
     }
 
