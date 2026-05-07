@@ -1,5 +1,19 @@
 # Changelog
 
+## v2.1.0 — 2026-05-07
+
+### Added
+
+- **⌘K Command Palette**: fuzzy search overlay (540×480, ultraThinMaterial). Sublime-style scoring with consecutive/word-boundary/case bonuses, <50ms for 1000 candidates. Navigate with ↑/↓, execute with Enter, dismiss with Esc or click-outside.
+- **Palette commands**: Switch Profile (⌘1-9 hints), Clear Profile, Open Hosts/Env tab, Search-in-Hosts (push query → tab search field), Search-in-Env (same).
+- **`pendingSearchQuery` bridge**: HostsFileManager + EnvFileManager expose pending query that views observe and apply to local search state — decouples palette from view-local @State.
+- **New app icon**: 3 cascading profile cards (purple/green/amber) on dark indigo squircle, matching DesignSystem ProfileColor tokens. SVG source in `design/app-icon.svg`, exported to 10 PNG sizes via rsvg-convert.
+
+### Internal
+
+- New tests: 7 FuzzySearch + 12 ViewModel/Commands → 76 unit tests pass.
+- New files: `Utilities/FuzzySearch.swift`, `Models/Command.swift`, `Views/CommandPalette/{View,Row,ViewModel}.swift`.
+
 ## v2.0.0 — 2026-05-07
 
 ### Breaking changes
