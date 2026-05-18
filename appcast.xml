@@ -3,12 +3,12 @@
     <channel>
         <title>Hosven</title>
         <item>
-            <title>1.0.10</title>
-            <pubDate>Sat, 16 May 2026 13:09:36 +0000</pubDate>
-            <sparkle:version>1.0.10</sparkle:version>
-            <sparkle:shortVersionString>1.0.10</sparkle:shortVersionString>
+            <title>1.1.0</title>
+            <pubDate>Mon, 18 May 2026 10:22:20 +0000</pubDate>
+            <sparkle:version>1.1.0</sparkle:version>
+            <sparkle:shortVersionString>1.1.0</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
-            <enclosure url="https://github.com/twan-nguyen/hosven/releases/download/v1.0.10/Hosven-v1.0.10.zip" length="5055412" type="application/octet-stream" sparkle:edSignature="h2f5Mg+KF3dN9n2VxtSfotoLlfP7E4nxwasoO+oh718dlNJ5IaxfAGqS5poF990XVPISrjvfFEFIMPaM1Rh6CA=="/>
+            <enclosure url="https://github.com/twan-nguyen/hosven/releases/download/v1.1.0/Hosven-v1.1.0.zip" length="5024075" type="application/octet-stream" sparkle:edSignature="J/63gj/nwg9uTX2buUPQq3opj1G6EW4HoN14711YmYNfCCcaYYyXIbFmKy6kX3bnB8HP9QRoaONpz1OLkPLODQ=="/>
         </item>
     </channel>
 </rss>
