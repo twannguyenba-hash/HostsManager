@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.0](https://github.com/twan-nguyen/hosven/compare/v1.0.10...v1.1.0) (2026-05-18)
+
+
+### Features
+
+* open edit modal after duplicating hosts entry or env key ([2e2cf01](https://github.com/twan-nguyen/hosven/commit/2e2cf01cbfc7c2aec0d07935e24de5ab579b9f0d))
+
 ## [1.0.10](https://github.com/twan-nguyen/hosven/compare/v1.0.9...v1.0.10) (2026-05-16)
 
 
