@@ -132,23 +132,6 @@ struct HostsView: View {
                         Label("Export vào clipboard", systemImage: "doc.on.clipboard")
                     }
                 }
-                Section("Sắp xếp") {
-                    Button {
-                        hostsManager.sortEntries(by: .hostname)
-                    } label: {
-                        Label("Theo hostname (A→Z)", systemImage: "textformat.abc")
-                    }
-                    Button {
-                        hostsManager.sortEntries(by: .ip)
-                    } label: {
-                        Label("Theo IP", systemImage: "number")
-                    }
-                    Button {
-                        hostsManager.sortEntries(by: .tagThenHostname)
-                    } label: {
-                        Label("Theo tag rồi hostname", systemImage: "tag")
-                    }
-                }
                 Section("File") {
                     Button {
                         hostsManager.createBackup()
@@ -423,7 +406,9 @@ struct HostsView: View {
             )
         }
         Button {
-            _ = hostsManager.duplicateEntry(id: entry.id)
+            if let copy = hostsManager.duplicateEntry(id: entry.id) {
+                editingEntry = copy
+            }
         } label: { Label("Nhân đôi", systemImage: "plus.square.on.square") }
         Divider()
         Button(role: .destructive) {

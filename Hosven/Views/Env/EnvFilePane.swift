@@ -513,6 +513,16 @@ struct EnvFilePane: View {
     @ViewBuilder
     private func envRowContextMenu(for entry: EnvEntry) -> some View {
         Button { editingEntry = entry } label: { Label("Sửa", systemImage: "pencil") }
+        Button {
+            guard let file = currentFile else { return }
+            if let copy = envManager.duplicateEntry(
+                repoId: repo.id,
+                fileId: file.id,
+                entryId: entry.id
+            ) {
+                editingEntry = copy
+            }
+        } label: { Label("Nhân đôi", systemImage: "plus.square.on.square") }
         Divider()
         Button(role: .destructive) {
             deleteTarget = entry
